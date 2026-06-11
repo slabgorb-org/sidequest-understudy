@@ -35,6 +35,7 @@ def _findings_table(findings: list[Finding]) -> str:
     order = {Grade.CONFIRMED: 0, Grade.BEHAVIORAL: 1, Grade.CLAIMED: 2}
     for f in sorted(findings, key=lambda f: (order[f.grade], f.seat, f.turn)):
         summary = f.confusion_reason or "; ".join(s.kind.value for s in f.signals)
+        summary = summary.replace("|", "\\|").replace("\n", " ")
         lines.append(
             f"| {f.grade.value} | {f.seat} | {f.archetype} | {f.turn} | {summary} |"
         )

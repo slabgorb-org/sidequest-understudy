@@ -74,6 +74,17 @@ def test_write_report_produces_all_artifacts(tmp_path):
     assert "claimed" in md.lower() and "hesitant" in md
 
 
+def test_spans_written_when_present(tmp_path):
+    spans = traces_to_jsonl_records(JAEGER_PAYLOAD)
+    out = write_report(tmp_path, _manifest(), [], [], spans=spans, spans_error=None)
+    spans_path = out / "spans.jsonl"
+    assert spans_path.exists()
+    for line in spans_path.read_text().splitlines():
+        json.loads(line)
+    md = (out / "report.md").read_text()
+    assert "1 server spans captured" in md
+
+
 def test_spans_error_is_loud_in_report(tmp_path):
     out = write_report(tmp_path, _manifest(), [], [], spans=None,
                        spans_error="Jaeger unreachable at http://localhost:16686")
