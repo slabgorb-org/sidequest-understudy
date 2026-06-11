@@ -50,11 +50,42 @@ def _lean_bucket(x: float) -> str:
     return "low" if x < 0.34 else ("high" if x > 0.66 else "medium")
 
 
-def build_system_prompt(arch: Archetype) -> str:
+def _humanize(slug: str) -> str:
+    """'flickering_reach' → 'Flickering Reach' — the way a friend says it."""
+    return slug.replace("_", " ").title()
+
+
+def _table_contract(world: str, genre: str, party_size: int) -> str:
+    """The social contract of game night: who's coming and what was agreed.
+    Intent only — never names a control (the naivety invariant holds)."""
+    world_name, genre_name = _humanize(world), _humanize(genre)
+    if party_size > 1:
+        company = (
+            f"You arranged this game with friends: {party_size} players are "
+            "sitting down together tonight, and all of you must end up in the "
+            "SAME shared multiplayer session. If you find yourself heading "
+            "into a game alone, something has gone wrong — look for a way to "
+            "play together, and report confusion if you cannot find one."
+        )
+    else:
+        company = "It is just you and the narrator tonight — a game of your own is correct."
+    return "\n".join(
+        [
+            "## Tonight's table",
+            company,
+            f'The group agreed on the world called "{world_name}" (a {genre_name} '
+            "game). Find that exact world and choose it — not a different one, "
+            "however tempting it looks.",
+        ]
+    )
+
+
+def build_system_prompt(arch: Archetype, *, world: str, genre: str, party_size: int) -> str:
     cap = VERBOSITY_CHAR_CAP[arch.verbosity]
     return "\n".join(
         [
             _FRAME,
+            _table_contract(world, genre, party_size),
             "## Who you are as a player",
             arch.prompt_fragment.strip(),
             _LEAN[_lean_bucket(arch.narrative_vs_mechanical)],

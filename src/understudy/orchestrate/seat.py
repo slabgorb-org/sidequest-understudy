@@ -55,6 +55,9 @@ class SeatRunner:
         settle_ms: int,
         ledger: TokenLedger,
         deadline: float | None,  # time.monotonic() deadline, None = no wall clock
+        world: str,
+        genre: str,
+        party_size: int,
     ):
         self.seat = seat
         self.archetype = archetype
@@ -65,7 +68,9 @@ class SeatRunner:
         self.settle_ms = settle_ms
         self.ledger = ledger
         self.deadline = deadline
-        self._system = build_system_prompt(archetype)
+        self._system = build_system_prompt(
+            archetype, world=world, genre=genre, party_size=party_size
+        )
         self._history: list[Message] = []
         self._intents: list[Intent | None] = []
         self._console_errors: list[str] = []

@@ -1,0 +1,12 @@
+# First live shakeout: one seat, short run, spans off (no Jaeger up).
+# Goal: can a bot get from the lobby through chargen into a seated session?
+name: one_seat_shakeout
+genre: mutant_wasteland
+world: flickering_reach
+session_url: http://localhost:5173
+seats:
+  - engaged_generalist
+turns: 6
+wall_clock_minutes: 15
+max_tokens_total: 100000
+capture_spans: false

@@ -43,8 +43,9 @@ A run is declared in one YAML file. Required fields:
 
 ```yaml
 name: four_seat_demo          # report directory naming
-genre: mutant_wasteland       # recorded in the report (not used to drive anything)
-world: flickering_reach
+genre: mutant_wasteland       # with world: the table's social contract — told to each
+world: flickering_reach       #   bot as intent ("the group agreed on this world",
+                              #   multiplayer when seats > 1), never as UI instructions
 session_url: http://localhost:5173   # explicit, never derived
 seats:
   - engaged_generalist                          # bare string = archetype, default model
