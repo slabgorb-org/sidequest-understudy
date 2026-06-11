@@ -1,0 +1,16 @@
+# Fully-autonomous four-seat table. To drive a seat yourself, change one
+# entry to `human` and join session_url in your own browser.
+name: four_seat_demo
+genre: mutant_wasteland
+world: flickering_reach
+session_url: http://localhost:5173   # point at the lobby; bots navigate naively
+seats:
+  - engaged_generalist
+  - mechanics_first
+  - narrative_first
+  - hesitant
+turns: 12
+wall_clock_minutes: 45
+max_tokens_total: 400000      # graceful stop + partial report at the ceiling
+capture_spans: true
+jaeger_url: http://localhost:16686
