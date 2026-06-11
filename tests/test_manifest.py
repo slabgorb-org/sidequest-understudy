@@ -1,6 +1,6 @@
 import pytest
 
-from understudy.manifest import ManifestError, RunManifest, load_manifest
+from understudy.manifest import ManifestError, load_manifest
 
 
 def test_seats_coerce_bare_strings(tmp_path):

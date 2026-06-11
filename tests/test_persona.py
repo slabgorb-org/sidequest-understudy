@@ -1,6 +1,6 @@
 import pytest
 
-from understudy.persona.model import Archetype, load_archetype, load_all_archetypes
+from understudy.persona.model import load_archetype, load_all_archetypes
 from understudy.persona.prompts import HISTORY_DEPTH, VERBOSITY_CHAR_CAP, build_system_prompt
 
 
