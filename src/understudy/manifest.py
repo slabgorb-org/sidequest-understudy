@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from understudy.persona.model import load_all_archetypes
 
-DEFAULT_MODEL = "anthropic/claude-haiku-4-5-20251001"
+DEFAULT_MODEL = "claude_p/haiku"  # bills to the operator's plan, not per-token API spend
 
 
 class ManifestError(Exception):

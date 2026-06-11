@@ -13,7 +13,7 @@ def test_seats_coerce_bare_strings(tmp_path):
     m = load_manifest(p)
     assert [s.archetype for s in m.seats] == ["human", "mechanics_first", "hesitant"]
     assert m.seats[2].model == "ollama/qwen3:8b"
-    assert m.seats[1].model.startswith("anthropic/")  # default backend
+    assert m.seats[1].model.startswith("claude_p/")  # default backend: operator plan, not API
 
 
 def test_unknown_archetype_in_manifest_fails_loud(tmp_path):

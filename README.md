@@ -88,9 +88,10 @@ Add one by dropping a YAML file in `src/understudy/persona/archetypes/`.
 
 Per-seat `model` spec is `<backend>/<model-id>`:
 
-- `anthropic/<model-id>` — default (`anthropic/claude-haiku-4-5-20251001`); intent forced via tool call
+- `claude_p/<model>` — default (`claude_p/haiku`); `claude -p` subprocess, bills to the
+  operator's plan, no token metering (the token ledger only guards API-backend spend)
+- `anthropic/<model-id>` — Anthropic API; intent forced via tool call, real token metering
 - `ollama/<model-id>` — zero-cost local lane; structured output via JSON schema
-- `claude_p/<model>` — `claude -p` subprocess; bills to the operator's plan, no token metering
 - `fake` — scripted brain, no LLM; used by the wiring test
 
 ## How findings are graded
