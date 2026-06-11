@@ -1,0 +1,13 @@
+# Second live shakeout: do two bots sit down at the SAME multiplayer table?
+# (First run regression: each seat created its own solo session.)
+name: two_seat_mp_shakeout
+genre: mutant_wasteland
+world: flickering_reach
+session_url: http://localhost:5173
+seats:
+  - engaged_generalist
+  - narrative_first
+turns: 8
+wall_clock_minutes: 15
+max_tokens_total: 150000
+capture_spans: false
