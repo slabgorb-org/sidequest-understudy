@@ -31,7 +31,6 @@ def _ollama_transport(reply: dict) -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
-@pytest.mark.asyncio
 async def test_ollama_decides_and_meters_tokens():
     reply = {
         "message": {"role": "assistant", "content": '{"kind": "wait"}'},
@@ -46,7 +45,6 @@ async def test_ollama_decides_and_meters_tokens():
     assert (result.input_tokens, result.output_tokens) == (100, 12)
 
 
-@pytest.mark.asyncio
 async def test_ollama_garbage_raises_model_error():
     reply = {"message": {"role": "assistant", "content": "lol no"}}
     model = OllamaModel(
