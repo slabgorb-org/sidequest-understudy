@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import httpx
 
-from understudy.brain.core import DecideResult, Message, parse_intent
+from understudy.brain.core import DecideResult, Message, ModelError, parse_intent
 from understudy.types import Intent
 
 
@@ -33,7 +33,11 @@ class OllamaModel:
         resp = await self._client.post(f"{self._host}/api/chat", json=payload)
         resp.raise_for_status()
         data = resp.json()
-        intent = parse_intent(data["message"]["content"])
+        try:
+            content = data["message"]["content"]
+        except (KeyError, TypeError) as exc:
+            raise ModelError(f"ollama response missing message content: {data!r:.300}") from exc
+        intent = parse_intent(content)
         return DecideResult(
             intent=intent,
             input_tokens=int(data.get("prompt_eval_count", 0)),
