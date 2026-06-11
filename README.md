@@ -19,6 +19,7 @@ that isn't there has just produced the data this tool exists to collect.
 
     uv run understudy run runs/four_seat_demo.yaml          # headless
     uv run understudy run runs/four_seat_demo.yaml --headed # watch it play
+    uv run understudy run runs/four_seat_demo.yaml --turns 20  # override the manifest's turn cap
 
 To drive a seat yourself, set one seat to `human` in the manifest and join
 the session_url in your own browser. Human seats are simply not driven by

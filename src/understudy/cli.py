@@ -29,6 +29,9 @@ def run(
     manifest: Path,
     headed: bool = typer.Option(False, "--headed", help="show the browser windows"),
     out: Path = typer.Option(Path("reports"), "--out", help="report output root"),
+    turns: int | None = typer.Option(
+        None, "--turns", min=1, help="override the manifest's per-seat turn cap"
+    ),
 ) -> None:
     """Run a table from a manifest: N naive bot seats join the session and play."""
     try:
@@ -36,5 +39,7 @@ def run(
     except ManifestError as exc:
         typer.echo(f"invalid manifest: {exc}")
         raise typer.Exit(2)
+    if turns is not None:
+        m = m.model_copy(update={"turns": turns})
     code = asyncio.run(run_table(m, headed=headed, out_root=out))
     raise typer.Exit(code)
