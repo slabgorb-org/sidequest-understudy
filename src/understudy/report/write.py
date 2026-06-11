@@ -36,14 +36,15 @@ def _findings_table(findings: list[Finding]) -> str:
     for f in sorted(findings, key=lambda f: (order[f.grade], f.seat, f.turn)):
         summary = f.confusion_reason or "; ".join(s.kind.value for s in f.signals)
         summary = summary.replace("|", "\\|").replace("\n", " ")
-        lines.append(
-            f"| {f.grade.value} | {f.seat} | {f.archetype} | {f.turn} | {summary} |"
-        )
+        lines.append(f"| {f.grade.value} | {f.seat} | {f.archetype} | {f.turn} | {summary} |")
     return "\n".join(lines) + "\n"
 
 
 def _seat_stats(rows: list[TranscriptRow]) -> str:
-    lines = ["| Seat | Turns | Acts | Waits | Confusions | Failed resolves |", "|---|---|---|---|---|---|"]
+    lines = [
+        "| Seat | Turns | Acts | Waits | Confusions | Failed resolves |",
+        "|---|---|---|---|---|---|",
+    ]
     for seat in sorted({r.seat for r in rows}):
         sr = [r for r in rows if r.seat == seat]
         acts = sum(1 for r in sr if r.intent and r.intent.kind.value == "act")

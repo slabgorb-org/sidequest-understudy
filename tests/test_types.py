@@ -54,7 +54,12 @@ def test_transcript_row_roundtrips_json():
 def test_finding_grade_values():
     assert {g.value for g in Grade} == {"confirmed", "behavioral", "claimed"}
     f = Finding(
-        grade=Grade.CLAIMED, seat=1, archetype="hesitant", turn=4,
-        confusion_reason="cannot tell whose turn it is", signals=[], snapshot_excerpt="…",
+        grade=Grade.CLAIMED,
+        seat=1,
+        archetype="hesitant",
+        turn=4,
+        confusion_reason="cannot tell whose turn it is",
+        signals=[],
+        snapshot_excerpt="…",
     )
     assert f.grade is Grade.CLAIMED

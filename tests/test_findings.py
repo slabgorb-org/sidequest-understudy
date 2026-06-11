@@ -1,7 +1,12 @@
 from understudy.findings.detect import repeated_action
 from understudy.findings.reconcile import reconcile
 from understudy.types import (
-    FrictionSignal, Grade, Intent, IntentKind, SignalKind, TranscriptRow,
+    FrictionSignal,
+    Grade,
+    Intent,
+    IntentKind,
+    SignalKind,
+    TranscriptRow,
 )
 
 
@@ -10,8 +15,15 @@ def _act(name="Send"):
 
 
 def _row(seat, turn, intent=None, signals=(), snapshot="- main:"):
-    return TranscriptRow(seat=seat, turn=turn, snapshot=snapshot, intent=intent,
-                         resolution="n/a", narration_delta="", signals=list(signals))
+    return TranscriptRow(
+        seat=seat,
+        turn=turn,
+        snapshot=snapshot,
+        intent=intent,
+        resolution="n/a",
+        narration_delta="",
+        signals=list(signals),
+    )
 
 
 def _sig(kind, seat, turn):

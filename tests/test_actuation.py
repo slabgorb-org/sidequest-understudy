@@ -15,8 +15,12 @@ FIXTURE = """
 
 async def test_fill_resolves_textbox_by_name(page):
     await page.set_content(FIXTURE)
-    intent = Intent(kind=IntentKind.ACT, target_role="textbox", target_name="Action",
-                    text_input="I open the gate")
+    intent = Intent(
+        kind=IntentKind.ACT,
+        target_role="textbox",
+        target_name="Action",
+        text_input="I open the gate",
+    )
     outcome = await perform_act(page, intent, settle_ms=50)
     assert outcome.resolution is Resolution.RESOLVED
     assert await page.locator("textarea").input_value() == "I open the gate"

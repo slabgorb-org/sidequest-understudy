@@ -19,7 +19,10 @@ from understudy.findings.detect import repeated_action
 from understudy.perception.snapshot import count_actionable, new_lines, perceive
 from understudy.persona.model import Archetype
 from understudy.persona.prompts import (
-    HISTORY_DEPTH, VERBOSITY_CHAR_CAP, WAIT_POLL_SECONDS, build_system_prompt,
+    HISTORY_DEPTH,
+    VERBOSITY_CHAR_CAP,
+    WAIT_POLL_SECONDS,
+    build_system_prompt,
 )
 from understudy.types import FrictionSignal, Intent, IntentKind, SignalKind, TranscriptRow
 
@@ -75,8 +78,9 @@ class SeatRunner:
 
     def _drain_console(self, turn: int) -> list[FrictionSignal]:
         sigs = [
-            FrictionSignal(kind=SignalKind.CONSOLE_ERROR, seat=self.seat, turn=turn,
-                           detail=text[:300])
+            FrictionSignal(
+                kind=SignalKind.CONSOLE_ERROR, seat=self.seat, turn=turn, detail=text[:300]
+            )
             for text in self._console_errors
         ]
         self._console_errors.clear()
@@ -97,9 +101,14 @@ class SeatRunner:
             snapshot = await perceive(self.page)
             signals: list[FrictionSignal] = self._drain_console(turn)
             if count_actionable(snapshot) == 0:
-                signals.append(FrictionSignal(
-                    kind=SignalKind.NO_ACTIONABLE_ELEMENTS, seat=self.seat, turn=turn,
-                    detail="no operable controls exposed to a semantic reader"))
+                signals.append(
+                    FrictionSignal(
+                        kind=SignalKind.NO_ACTIONABLE_ELEMENTS,
+                        seat=self.seat,
+                        turn=turn,
+                        detail="no operable controls exposed to a semantic reader",
+                    )
+                )
 
             self._history.append(Message(role="user", content=snapshot))
             context = self._history[-depth:]
@@ -113,47 +122,77 @@ class SeatRunner:
                 self.ledger.add(result.input_tokens, result.output_tokens)
                 intent = result.intent
             except TimeoutError:
-                signals.append(FrictionSignal(
-                    kind=SignalKind.DECIDE_TIMEOUT, seat=self.seat, turn=turn,
-                    detail=f"model did not decide within {self.decide_timeout_s}s"))
+                signals.append(
+                    FrictionSignal(
+                        kind=SignalKind.DECIDE_TIMEOUT,
+                        seat=self.seat,
+                        turn=turn,
+                        detail=f"model did not decide within {self.decide_timeout_s}s",
+                    )
+                )
             except ModelError as exc:
-                signals.append(FrictionSignal(
-                    kind=SignalKind.MODEL_ERROR, seat=self.seat, turn=turn,
-                    detail=str(exc)[:300]))
+                signals.append(
+                    FrictionSignal(
+                        kind=SignalKind.MODEL_ERROR,
+                        seat=self.seat,
+                        turn=turn,
+                        detail=str(exc)[:300],
+                    )
+                )
 
             self._intents.append(intent)
             if repeated_action(self._intents):
-                signals.append(FrictionSignal(
-                    kind=SignalKind.REPEATED_ACTION, seat=self.seat, turn=turn,
-                    detail="same act three times running"))
+                signals.append(
+                    FrictionSignal(
+                        kind=SignalKind.REPEATED_ACTION,
+                        seat=self.seat,
+                        turn=turn,
+                        detail="same act three times running",
+                    )
+                )
 
             resolution = "n/a"
             narration_delta = ""
             if intent is not None and intent.kind is IntentKind.ACT:
                 if intent.text_input and len(intent.text_input) > cap:
-                    intent = intent.model_copy(
-                        update={"text_input": intent.text_input[:cap]})
+                    intent = intent.model_copy(update={"text_input": intent.text_input[:cap]})
                 outcome = await perform_act(self.page, intent, self.settle_ms)
                 resolution = outcome.resolution.value
                 if outcome.resolution is Resolution.FAILED:
-                    signals.append(FrictionSignal(
-                        kind=SignalKind.RESOLUTION_FAILED, seat=self.seat, turn=turn,
-                        detail=outcome.detail))
+                    signals.append(
+                        FrictionSignal(
+                            kind=SignalKind.RESOLUTION_FAILED,
+                            seat=self.seat,
+                            turn=turn,
+                            detail=outcome.detail,
+                        )
+                    )
                 elif outcome.resolution is Resolution.AMBIGUOUS:
-                    signals.append(FrictionSignal(
-                        kind=SignalKind.RESOLUTION_AMBIGUOUS, seat=self.seat, turn=turn,
-                        detail=outcome.detail))
+                    signals.append(
+                        FrictionSignal(
+                            kind=SignalKind.RESOLUTION_AMBIGUOUS,
+                            seat=self.seat,
+                            turn=turn,
+                            detail=outcome.detail,
+                        )
+                    )
                 after = await perceive(self.page)
                 narration_delta = new_lines(snapshot, after)
             elif intent is not None and intent.kind is IntentKind.WAIT:
                 await asyncio.sleep(wait_poll)
 
             if intent is not None:
-                self._history.append(
-                    Message(role="assistant", content=intent.model_dump_json()))
+                self._history.append(Message(role="assistant", content=intent.model_dump_json()))
 
-            rows.append(TranscriptRow(
-                seat=self.seat, turn=turn, snapshot=snapshot, intent=intent,
-                resolution=resolution, narration_delta=narration_delta,
-                signals=signals))
+            rows.append(
+                TranscriptRow(
+                    seat=self.seat,
+                    turn=turn,
+                    snapshot=snapshot,
+                    intent=intent,
+                    resolution=resolution,
+                    narration_delta=narration_delta,
+                    signals=signals,
+                )
+            )
         return rows

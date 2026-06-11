@@ -28,7 +28,7 @@ def test_count_actionable_zero_on_dead_screen():
 
 
 def test_new_lines_returns_only_fresh_content():
-    after = ARIA_FIXTURE + '  - log: A guard approaches you.\n'
+    after = ARIA_FIXTURE + "  - log: A guard approaches you.\n"
     delta = new_lines(ARIA_FIXTURE, after)
     assert "A guard approaches you." in delta
     assert "You stand at the gate" not in delta

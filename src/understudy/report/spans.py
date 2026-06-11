@@ -98,9 +98,7 @@ def write_span_jsonl(records: list[dict[str, Any]], path: Path) -> int:
     gate. Raises :class:`SpanCaptureEmpty` instead (no file touched).
     """
     if not records:
-        raise SpanCaptureEmpty(
-            "refusing to write an empty span JSONL — zero spans captured"
-        )
+        raise SpanCaptureEmpty("refusing to write an empty span JSONL — zero spans captured")
     lines = "\n".join(json.dumps(rec, sort_keys=True) for rec in records)
     path.write_text(lines + "\n")
     return len(records)

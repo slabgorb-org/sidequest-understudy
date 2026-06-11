@@ -37,9 +37,7 @@ async def test_ollama_decides_and_meters_tokens():
         "prompt_eval_count": 100,
         "eval_count": 12,
     }
-    model = OllamaModel(
-        "qwen3:8b", client=httpx.AsyncClient(transport=_ollama_transport(reply))
-    )
+    model = OllamaModel("qwen3:8b", client=httpx.AsyncClient(transport=_ollama_transport(reply)))
     result = await model.decide("sys", [Message(role="user", content="screen")])
     assert result.intent.kind is IntentKind.WAIT
     assert (result.input_tokens, result.output_tokens) == (100, 12)
@@ -47,8 +45,6 @@ async def test_ollama_decides_and_meters_tokens():
 
 async def test_ollama_garbage_raises_model_error():
     reply = {"message": {"role": "assistant", "content": "lol no"}}
-    model = OllamaModel(
-        "qwen3:8b", client=httpx.AsyncClient(transport=_ollama_transport(reply))
-    )
+    model = OllamaModel("qwen3:8b", client=httpx.AsyncClient(transport=_ollama_transport(reply)))
     with pytest.raises(ModelError):
         await model.decide("sys", [Message(role="user", content="screen")])

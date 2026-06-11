@@ -23,7 +23,13 @@ class ClaudePModel:
             '"target_name": str|null, "text_input": str|null, "reason": str|null}'
         )
         proc = await asyncio.create_subprocess_exec(
-            "claude", "-p", "-", "--output-format", "json", "--model", self._model,
+            "claude",
+            "-p",
+            "-",
+            "--output-format",
+            "json",
+            "--model",
+            self._model,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

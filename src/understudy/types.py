@@ -27,8 +27,8 @@ class Intent(BaseModel):
     kind: IntentKind
     target_role: str | None = None  # ARIA role as the bot perceives it ("button")
     target_name: str | None = None  # accessible name as the bot would say it ("Send")
-    text_input: str | None = None   # text to type into the target, if any
-    reason: str | None = None       # for report_confusion / wait
+    text_input: str | None = None  # text to type into the target, if any
+    reason: str | None = None  # for report_confusion / wait
 
     @model_validator(mode="after")
     def _shape(self) -> "Intent":
@@ -63,17 +63,17 @@ class TranscriptRow(BaseModel):
 
     seat: int
     turn: int
-    snapshot: str            # the structured-text a11y snapshot the brain saw
-    intent: Intent | None    # None when decide failed or timed out
-    resolution: str          # "resolved" | "ambiguous" | "failed" | "n/a"
-    narration_delta: str     # new text observed after acting
+    snapshot: str  # the structured-text a11y snapshot the brain saw
+    intent: Intent | None  # None when decide failed or timed out
+    resolution: str  # "resolved" | "ambiguous" | "failed" | "n/a"
+    narration_delta: str  # new text observed after acting
     signals: list[FrictionSignal] = []
 
 
 class Grade(StrEnum):
-    CONFIRMED = "confirmed"    # subjective + objective agree
+    CONFIRMED = "confirmed"  # subjective + objective agree
     BEHAVIORAL = "behavioral"  # objective only — bot muddled through silently
-    CLAIMED = "claimed"        # subjective only — wolf-cry candidate, kept but down-ranked
+    CLAIMED = "claimed"  # subjective only — wolf-cry candidate, kept but down-ranked
 
 
 class Finding(BaseModel):

@@ -12,7 +12,12 @@ failures, and never promote a complaint to CONFIRMED.
 from __future__ import annotations
 
 from understudy.types import (
-    Finding, FrictionSignal, Grade, IntentKind, SignalKind, TranscriptRow,
+    Finding,
+    FrictionSignal,
+    Grade,
+    IntentKind,
+    SignalKind,
+    TranscriptRow,
 )
 
 _DOWNWEIGHTED = {SignalKind.MODEL_ERROR}
@@ -38,9 +43,7 @@ def reconcile(rows: list[TranscriptRow], archetype_by_seat: dict[int, str]) -> l
                 continue
             window = [s for s in hard if abs(s.turn - row.turn) <= _WINDOW]
             grade = Grade.CONFIRMED if window else Grade.CLAIMED
-            complaint_windows.update(
-                t for t in range(row.turn - _WINDOW, row.turn + _WINDOW + 1)
-            )
+            complaint_windows.update(t for t in range(row.turn - _WINDOW, row.turn + _WINDOW + 1))
             findings.append(
                 Finding(
                     grade=grade,

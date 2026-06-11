@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Fixture Table</title></head>
+<body>
+<main>
+  <h1>Fixture Table</h1>
+  <div id="narration" role="log">You stand at the gate of the settlement.</div>
+  <label for="action">Action</label>
+  <textarea id="action"></textarea>
+  <button id="send">Send</button>
+</main>
+<script>
+  document.getElementById("send").addEventListener("click", () => {
+    const box = document.getElementById("action");
+    document.getElementById("narration").append(" You did: " + box.value + ".");
+    box.value = "";
+  });
+</script>
+</body>
+</html>

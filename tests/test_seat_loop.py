@@ -20,15 +20,24 @@ def _ledger():
 async def test_seat_runs_script_and_records_transcript(page):
     await page.set_content(FIXTURE)
     script = [
-        Intent(kind=IntentKind.ACT, target_role="textbox", target_name="Action",
-               text_input="I open the gate"),
+        Intent(
+            kind=IntentKind.ACT,
+            target_role="textbox",
+            target_name="Action",
+            text_input="I open the gate",
+        ),
         Intent(kind=IntentKind.ACT, target_role="button", target_name="Send"),
         Intent(kind=IntentKind.REPORT_CONFUSION, reason="cannot tell whose turn it is"),
     ]
     runner = SeatRunner(
-        seat=1, archetype=load_archetype("narrative_first"),
-        model=FakeActionModel(script), page=page,
-        turns=3, decide_timeout_s=10.0, settle_ms=50, ledger=_ledger(),
+        seat=1,
+        archetype=load_archetype("narrative_first"),
+        model=FakeActionModel(script),
+        page=page,
+        turns=3,
+        decide_timeout_s=10.0,
+        settle_ms=50,
+        ledger=_ledger(),
         deadline=None,
     )
     rows = await runner.run()
@@ -43,9 +52,14 @@ async def test_failed_resolution_emits_signal(page):
     await page.set_content(FIXTURE)
     script = [Intent(kind=IntentKind.ACT, target_role="button", target_name="Dice Tray")]
     runner = SeatRunner(
-        seat=1, archetype=load_archetype("mechanics_first"),
-        model=FakeActionModel(script), page=page,
-        turns=1, decide_timeout_s=10.0, settle_ms=50, ledger=_ledger(),
+        seat=1,
+        archetype=load_archetype("mechanics_first"),
+        model=FakeActionModel(script),
+        page=page,
+        turns=1,
+        decide_timeout_s=10.0,
+        settle_ms=50,
+        ledger=_ledger(),
         deadline=None,
     )
     rows = await runner.run()
@@ -62,10 +76,15 @@ async def test_token_ledger_breach_stops_gracefully(page):
             return type(result)(intent=result.intent, input_tokens=600, output_tokens=0)
 
     runner = SeatRunner(
-        seat=1, archetype=load_archetype("hesitant"),
-        model=CostlyFake([Intent(kind=IntentKind.WAIT)] * 10), page=page,
-        turns=10, decide_timeout_s=10.0, settle_ms=10,
-        ledger=TokenLedger(ceiling=1000), deadline=None,
+        seat=1,
+        archetype=load_archetype("hesitant"),
+        model=CostlyFake([Intent(kind=IntentKind.WAIT)] * 10),
+        page=page,
+        turns=10,
+        decide_timeout_s=10.0,
+        settle_ms=10,
+        ledger=TokenLedger(ceiling=1000),
+        deadline=None,
     )
     rows = await runner.run()
     assert len(rows) < 10  # stopped at the ceiling, partial transcript kept

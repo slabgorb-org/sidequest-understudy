@@ -4,11 +4,18 @@ import pytest
 
 from understudy.manifest import RunManifest, SeatSpec
 from understudy.report.spans import (
-    SpanCaptureEmpty, flatten_jaeger_tags, traces_to_jsonl_records, write_span_jsonl,
+    SpanCaptureEmpty,
+    flatten_jaeger_tags,
+    traces_to_jsonl_records,
+    write_span_jsonl,
 )
 from understudy.report.write import write_report
 from understudy.types import (
-    Finding, Grade, Intent, IntentKind, TranscriptRow,
+    Finding,
+    Grade,
+    Intent,
+    IntentKind,
+    TranscriptRow,
 )
 
 JAEGER_PAYLOAD = {
@@ -17,9 +24,11 @@ JAEGER_PAYLOAD = {
             "spans": [
                 {
                     "operationName": "narration.turn",
-                    "spanID": "abc", "traceID": "t1",
+                    "spanID": "abc",
+                    "traceID": "t1",
                     "references": [{"refType": "CHILD_OF", "spanID": "root"}],
-                    "startTime": 1000, "duration": 50,
+                    "startTime": 1000,
+                    "duration": 50,
                     "tags": [{"key": "narration.turn.model_chosen", "value": "haiku"}],
                 }
             ]
@@ -46,23 +55,38 @@ def test_empty_span_write_refuses(tmp_path):
 
 def _manifest():
     return RunManifest(
-        name="t", genre="g", world="w", session_url="http://x/p",
-        seats=[SeatSpec(archetype="hesitant")], turns=2, capture_spans=False,
+        name="t",
+        genre="g",
+        world="w",
+        session_url="http://x/p",
+        seats=[SeatSpec(archetype="hesitant")],
+        turns=2,
+        capture_spans=False,
     )
 
 
 def test_write_report_produces_all_artifacts(tmp_path):
     rows = [
         TranscriptRow(
-            seat=1, turn=1, snapshot="- main:", resolution="resolved",
+            seat=1,
+            turn=1,
+            snapshot="- main:",
+            resolution="resolved",
             intent=Intent(kind=IntentKind.ACT, target_role="button", target_name="Send"),
             narration_delta="a guard approaches",
             signals=[],
         )
     ]
     findings = [
-        Finding(grade=Grade.CLAIMED, seat=1, archetype="hesitant", turn=1,
-                confusion_reason="lost", signals=[], snapshot_excerpt="- main:")
+        Finding(
+            grade=Grade.CLAIMED,
+            seat=1,
+            archetype="hesitant",
+            turn=1,
+            confusion_reason="lost",
+            signals=[],
+            snapshot_excerpt="- main:",
+        )
     ]
     out = write_report(tmp_path, _manifest(), rows, findings, spans=None, spans_error=None)
     assert (out / "report.md").exists()
@@ -86,8 +110,14 @@ def test_spans_written_when_present(tmp_path):
 
 
 def test_spans_error_is_loud_in_report(tmp_path):
-    out = write_report(tmp_path, _manifest(), [], [], spans=None,
-                       spans_error="Jaeger unreachable at http://localhost:16686")
+    out = write_report(
+        tmp_path,
+        _manifest(),
+        [],
+        [],
+        spans=None,
+        spans_error="Jaeger unreachable at http://localhost:16686",
+    )
     md = (out / "report.md").read_text()
     assert "SPANS MISSING" in md
     assert not (out / "spans.jsonl").exists()

@@ -58,7 +58,5 @@ def load_manifest(path: Path) -> RunManifest:
     known = set(load_all_archetypes())
     for seat in m.seats:
         if seat.archetype != "human" and seat.archetype not in known:
-            raise ManifestError(
-                f"unknown archetype {seat.archetype!r} (known: {sorted(known)})"
-            )
+            raise ManifestError(f"unknown archetype {seat.archetype!r} (known: {sorted(known)})")
     return m

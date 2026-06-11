@@ -14,8 +14,19 @@ from playwright.async_api import Page
 # NO_ACTIONABLE_ELEMENTS stuck-signal — never shown to the brain.
 ACTIONABLE_ROLES = frozenset(
     {
-        "button", "textbox", "searchbox", "link", "combobox", "checkbox",
-        "radio", "slider", "spinbutton", "switch", "tab", "menuitem", "option",
+        "button",
+        "textbox",
+        "searchbox",
+        "link",
+        "combobox",
+        "checkbox",
+        "radio",
+        "slider",
+        "spinbutton",
+        "switch",
+        "tab",
+        "menuitem",
+        "option",
     }
 )
 

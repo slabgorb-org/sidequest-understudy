@@ -30,8 +30,7 @@ async def run_table(
     """Returns a process exit code: 0 ok, 1 span-capture failure (run report
     still written — the artifact is partial, and that is said loudly)."""
     bot_seats = [
-        (idx, spec) for idx, spec in enumerate(manifest.seats, start=1)
-        if spec.archetype != "human"
+        (idx, spec) for idx, spec in enumerate(manifest.seats, start=1) if spec.archetype != "human"
     ]
     for idx, spec in enumerate(manifest.seats, start=1):
         if spec.archetype == "human":
@@ -48,17 +47,19 @@ async def run_table(
             context = await browser.new_context()
             page = await context.new_page()
             await page.goto(manifest.session_url)
-            runners.append(SeatRunner(
-                seat=idx,
-                archetype=load_archetype(spec.archetype),
-                model=model_factory(spec.model),
-                page=page,
-                turns=manifest.turns,
-                decide_timeout_s=manifest.decide_timeout_s,
-                settle_ms=manifest.settle_ms,
-                ledger=ledger,
-                deadline=deadline,
-            ))
+            runners.append(
+                SeatRunner(
+                    seat=idx,
+                    archetype=load_archetype(spec.archetype),
+                    model=model_factory(spec.model),
+                    page=page,
+                    turns=manifest.turns,
+                    decide_timeout_s=manifest.decide_timeout_s,
+                    settle_ms=manifest.settle_ms,
+                    ledger=ledger,
+                    deadline=deadline,
+                )
+            )
         all_rows_nested = await asyncio.gather(*(r.run() for r in runners))
         await browser.close()
 
@@ -72,7 +73,8 @@ async def run_table(
     if manifest.capture_spans:
         try:
             spans = await capture_run_spans(
-                manifest.jaeger_url, run_start_us=run_start_us, run_end_us=run_end_us)
+                manifest.jaeger_url, run_start_us=run_start_us, run_end_us=run_end_us
+            )
         except (httpx.HTTPError, SpanCaptureEmpty) as exc:
             spans_error = str(exc)
 
