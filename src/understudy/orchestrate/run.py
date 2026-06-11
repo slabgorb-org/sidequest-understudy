@@ -58,6 +58,9 @@ async def run_table(
                     settle_ms=manifest.settle_ms,
                     ledger=ledger,
                     deadline=deadline,
+                    world=manifest.world,
+                    genre=manifest.genre,
+                    party_size=len(manifest.seats),  # humans count — they share the table
                 )
             )
         all_rows_nested = await asyncio.gather(*(r.run() for r in runners))
