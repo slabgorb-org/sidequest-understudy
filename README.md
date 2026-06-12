@@ -109,8 +109,14 @@ Add one by dropping a YAML file in `src/understudy/persona/archetypes/`.
 Per-seat `model` spec is `<backend>/<model-id>`:
 
 - `claude_p/<model>` — default (`claude_p/haiku`); `claude -p` subprocess, bills to the
-  operator's plan, no token metering (the token ledger only guards API-backend spend)
-- `anthropic/<model-id>` — Anthropic API; intent forced via tool call, real token metering
+  operator's subscription plan, no token metering (the token ledger only guards
+  API-backend spend). The subprocess runs with `ANTHROPIC_API_KEY`/`ANTHROPIC_ADMIN_KEY`
+  stripped from its env so it uses subscription OAuth, never the metered API — with no
+  subscription login it fails loud rather than silently billing per-token.
+- `anthropic/<model-id>` — Anthropic API; intent forced via tool call, real token
+  metering. The per-seat system prompt is cached, so each turn after the first re-reads
+  it at ~0.1× input cost; reported `input_tokens` still sums cached + uncached, so
+  `max_tokens_total` bounds true volume — only the bill drops, not the ceiling.
 - `ollama/<model-id>` — zero-cost local lane; structured output via JSON schema
 - `fake` — scripted brain, no LLM; used by the wiring test
 
