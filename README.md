@@ -38,6 +38,25 @@ Reports land in `reports/<date>-<name>-rN/` (override the root with `--out`):
 `1` run completed but span capture failed — the report exists, the engine-side
 trace is missing; `2` manifest invalid or missing.
 
+## Reconnect (skip chargen)
+
+Every run automatically snapshots each bot seat's browser state to
+`reports/<run>/state/seat-{idx}.json`. Re-run with `--reconnect` pointed at a
+prior run's report dir to restore that state — the bot's lobby surfaces its
+one-click resume entry and it rejoins its character past chargen, so the turn
+budget goes to play instead of character creation.
+
+    uv run understudy run runs/four_seat_demo.yaml                          # run 1: chargen + play; writes state/
+    uv run understudy run runs/four_seat_demo.yaml --reconnect reports/<run1>  # run 2: resume, skip chargen
+
+The reconnect run must declare the same seat order and count as the seed run
+(same manifest is the normal case); mapping is by seat index. A missing or
+incomplete `<DIR>/state/` fails loud (exit 2) before any browser launches. If a
+stored session no longer loads (server restarted, different day), the bot
+naively falls into chargen — a legitimate finding, not a suppressed error.
+Reconnect targets the iterate-on-play loop within a session's life, not
+long-term replay.
+
 ## The manifest
 
 A run is declared in one YAML file. Required fields:
