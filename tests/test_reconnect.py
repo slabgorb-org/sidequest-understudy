@@ -25,3 +25,26 @@ def test_context_kwargs_carry_storage_state_path():
     assert reconnect_context_kwargs(d, 2) == {
         "storage_state": str(d / "state" / "seat-2.json")
     }
+
+
+def test_validate_raises_when_dir_missing(tmp_path):
+    with pytest.raises(ManifestError, match="does not exist"):
+        validate_reconnect_dir(tmp_path / "ghost", [1])
+
+
+def test_validate_raises_when_state_subdir_missing(tmp_path):
+    with pytest.raises(ManifestError, match="no state/"):
+        validate_reconnect_dir(tmp_path, [1])
+
+
+def test_validate_names_the_missing_seat(tmp_path):
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "seat-1.json").write_text("{}")
+    with pytest.raises(ManifestError, match="seat 2"):
+        validate_reconnect_dir(tmp_path, [1, 2])
+
+
+def test_validate_passes_when_all_seat_files_present(tmp_path):
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "seat-1.json").write_text("{}")
+    validate_reconnect_dir(tmp_path, [1])  # no raise
