@@ -36,7 +36,8 @@ def _findings_table(findings: list[Finding]) -> str:
     for f in sorted(findings, key=lambda f: (order[f.grade], f.seat, f.turn)):
         summary = f.confusion_reason or "; ".join(s.kind.value for s in f.signals)
         summary = summary.replace("|", "\\|").replace("\n", " ")
-        lines.append(f"| {f.grade.value} | {f.seat} | {f.archetype} | {f.turn} | {summary} |")
+        turns = f"{f.turn}–{f.turn_end} (×{f.occurrences})" if f.occurrences > 1 else str(f.turn)
+        lines.append(f"| {f.grade.value} | {f.seat} | {f.archetype} | {turns} | {summary} |")
     return "\n".join(lines) + "\n"
 
 
