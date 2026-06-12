@@ -18,7 +18,7 @@ from understudy.report.spans import write_span_jsonl
 from understudy.types import Finding, Grade, TranscriptRow
 
 
-def _next_run_dir(root: Path, name: str) -> Path:
+def resolve_run_dir(root: Path, name: str) -> Path:
     today = datetime.date.today().isoformat()
     n = 1
     while (root / f"{today}-{name}-r{n}").exists():
@@ -63,8 +63,9 @@ def write_report(
     findings: list[Finding],
     spans: list[dict] | None,
     spans_error: str | None,
+    run_dir: Path | None = None,
 ) -> Path:
-    out = _next_run_dir(out_root, manifest.name)
+    out = run_dir if run_dir is not None else resolve_run_dir(out_root, manifest.name)
 
     (out / "findings.json").write_text(
         json.dumps([f.model_dump(mode="json") for f in findings], indent=2) + "\n"

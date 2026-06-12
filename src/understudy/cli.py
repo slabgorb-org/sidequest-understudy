@@ -32,6 +32,12 @@ def run(
     turns: int | None = typer.Option(
         None, "--turns", min=1, help="override the manifest's per-seat turn cap"
     ),
+    reconnect: Path | None = typer.Option(
+        None,
+        "--reconnect",
+        help="restore each bot seat's browser state from <DIR>/state/seat-{idx}.json "
+        "(a prior run's report dir) so seats skip chargen and rejoin",
+    ),
 ) -> None:
     """Run a table from a manifest: N naive bot seats join the session and play."""
     try:
@@ -41,5 +47,11 @@ def run(
         raise typer.Exit(2)
     if turns is not None:
         m = m.model_copy(update={"turns": turns})
-    code = asyncio.run(run_table(m, headed=headed, out_root=out))
+    try:
+        code = asyncio.run(
+            run_table(m, headed=headed, out_root=out, reconnect=reconnect)
+        )
+    except ManifestError as exc:
+        typer.echo(f"reconnect error: {exc}")
+        raise typer.Exit(2)
     raise typer.Exit(code)

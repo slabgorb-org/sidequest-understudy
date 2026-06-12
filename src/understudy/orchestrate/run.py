@@ -17,7 +17,12 @@ from understudy.manifest import RunManifest
 from understudy.orchestrate.seat import SeatRunner, TokenLedger
 from understudy.persona.model import load_archetype
 from understudy.report.spans import SpanCaptureEmpty, capture_run_spans
-from understudy.report.write import write_report
+from understudy.report.write import resolve_run_dir, write_report
+from understudy.orchestrate.reconnect import (
+    reconnect_context_kwargs,
+    seat_state_path,
+    validate_reconnect_dir,
+)
 
 
 async def run_table(
@@ -25,6 +30,7 @@ async def run_table(
     *,
     headed: bool = False,
     out_root: Path = Path("reports"),
+    reconnect: Path | None = None,
     model_factory=make_model,  # injection seam for the wiring test
 ) -> int:
     """Returns a process exit code: 0 ok, 1 span-capture failure (run report
@@ -32,6 +38,9 @@ async def run_table(
     bot_seats = [
         (idx, spec) for idx, spec in enumerate(manifest.seats, start=1) if spec.archetype != "human"
     ]
+    if reconnect is not None:
+        validate_reconnect_dir(reconnect, [idx for idx, _ in bot_seats])
+    out_dir = resolve_run_dir(out_root, manifest.name)
     for idx, spec in enumerate(manifest.seats, start=1):
         if spec.archetype == "human":
             print(f"seat {idx}: human — join {manifest.session_url} yourself")
@@ -43,8 +52,10 @@ async def run_table(
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=not headed)
         runners: list[SeatRunner] = []
+        seat_contexts: list[tuple[int, object]] = []  # (idx, BrowserContext)
         for idx, spec in bot_seats:
-            context = await browser.new_context()
+            context = await browser.new_context(**reconnect_context_kwargs(reconnect, idx))
+            seat_contexts.append((idx, context))
             page = await context.new_page()
             await page.goto(manifest.session_url)
             runners.append(
@@ -64,6 +75,9 @@ async def run_table(
                 )
             )
         all_rows_nested = await asyncio.gather(*(r.run() for r in runners))
+        (out_dir / "state").mkdir(parents=True, exist_ok=True)
+        for idx, context in seat_contexts:
+            await context.storage_state(path=str(seat_state_path(out_dir, idx)))
         await browser.close()
 
     run_end_us = int(time.time() * 1_000_000)
@@ -81,7 +95,7 @@ async def run_table(
         except (httpx.HTTPError, SpanCaptureEmpty) as exc:
             spans_error = str(exc)
 
-    out = write_report(out_root, manifest, rows, findings, spans, spans_error)
+    out = write_report(out_root, manifest, rows, findings, spans, spans_error, run_dir=out_dir)
     print(f"report: {out}")
     if manifest.capture_spans and not spans:
         print("SPAN CAPTURE FAILED — run was not traced or Jaeger unreachable")
