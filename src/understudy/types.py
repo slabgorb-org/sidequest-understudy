@@ -81,6 +81,14 @@ class Finding(BaseModel):
     seat: int
     archetype: str
     turn: int
+    turn_end: int = 0  # last turn of a collapsed stuck-state; coerced to >= turn
+    occurrences: int = 1  # how many per-turn findings collapsed into this one
     confusion_reason: str | None
     signals: list[FrictionSignal]
     snapshot_excerpt: str
+
+    @model_validator(mode="after")
+    def _range(self) -> "Finding":
+        if self.turn_end < self.turn:
+            self.turn_end = self.turn
+        return self

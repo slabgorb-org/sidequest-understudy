@@ -7,6 +7,12 @@ CLAIMED    — subjective only: complaint with clean behavior (kept, down-ranked
 
 MODEL_ERROR signals are down-weighted: they are model failures, not UI
 failures, and never promote a complaint to CONFIRMED.
+
+Collapse: consecutive findings from one seat with the same grade against an
+IDENTICAL snapshot excerpt are one stuck-state, not N findings — a frozen
+page complained about for 40 turns is one finding with a turn range (the
+four_seat_demo r2 lesson: 145 rows of one missing portrait picker). The
+snapshot is the identity; reworded complaints don't make new findings.
 """
 
 from __future__ import annotations
@@ -26,6 +32,32 @@ _WINDOW = 1  # turns either side of a complaint
 
 def _hard_signals(rows: list[TranscriptRow]) -> list[FrictionSignal]:
     return [s for r in rows for s in r.signals if s.kind not in _DOWNWEIGHTED]
+
+
+def _collapse(findings: list[Finding]) -> list[Finding]:
+    """Merge adjacent same-seat, same-grade, same-snapshot findings into one
+    range. Overlapping ±1-turn signal windows are deduped in the merge."""
+    out: list[Finding] = []
+    for f in findings:
+        prev = out[-1] if out else None
+        if (
+            prev is not None
+            and prev.seat == f.seat
+            and prev.grade is f.grade
+            and prev.snapshot_excerpt == f.snapshot_excerpt
+        ):
+            merged = {(s.kind, s.seat, s.turn, s.detail): s for s in prev.signals + f.signals}
+            out[-1] = prev.model_copy(
+                update={
+                    "turn_end": f.turn_end,
+                    "occurrences": prev.occurrences + f.occurrences,
+                    "signals": list(merged.values()),
+                    "confusion_reason": prev.confusion_reason or f.confusion_reason,
+                }
+            )
+        else:
+            out.append(f)
+    return out
 
 
 def reconcile(rows: list[TranscriptRow], archetype_by_seat: dict[int, str]) -> list[Finding]:
@@ -71,4 +103,4 @@ def reconcile(rows: list[TranscriptRow], archetype_by_seat: dict[int, str]) -> l
                         snapshot_excerpt=row.snapshot[:800],
                     )
                 )
-    return findings
+    return _collapse(findings)
