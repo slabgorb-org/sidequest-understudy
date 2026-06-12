@@ -1,13 +1,27 @@
 """`claude -p` subprocess backend. One-shot; no token metering available
-(reported as zeros — the ledger guards API spend, and claude -p bills to the
-operator's plan, not per-token)."""
+(reported as zeros).
+
+To actually bill the operator's plan (the whole point of this backend) the
+subprocess must NOT see an API key — `claude -p` prefers `ANTHROPIC_API_KEY`
+over subscription OAuth and will otherwise bill the metered API per-token,
+uncached. We strip the key from the child env: with a subscription login it
+bills the plan; with none it fails loud, never silently falling back to API
+spend."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 from understudy.brain.core import DecideResult, Message, ModelError, parse_intent
+
+# Env vars that, if inherited, would silently route claude -p to API billing.
+_API_KEY_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_ADMIN_KEY")
+
+
+def _plan_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k not in _API_KEY_VARS}
 
 
 class ClaudePModel:
@@ -33,6 +47,7 @@ class ClaudePModel:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=_plan_env(),
         )
         stdout, stderr = await proc.communicate(prompt.encode())
         if proc.returncode != 0:
