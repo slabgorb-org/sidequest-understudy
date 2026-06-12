@@ -1,5 +1,12 @@
 """Anthropic SDK backend. Intent is forced via a tool call so the shape is
-validated at the API layer, not parsed out of prose."""
+validated at the API layer, not parsed out of prose.
+
+A seat's ``system`` prompt (frame + table contract + persona) is byte-stable
+for the whole run, so it carries a ``cache_control`` breakpoint: every one of
+a seat's ~50 turns re-reads the same cached prefix (tools + system) at ~0.1x
+input cost instead of re-paying it cold. ``input_tokens`` reported to the
+ledger sums cached and uncached input so ``max_tokens_total`` still bounds
+true work — only the *cost* drops, not the metered volume."""
 
 from __future__ import annotations
 
@@ -25,7 +32,16 @@ class AnthropicModel:
         resp = await self._client.messages.create(
             model=self._model,
             max_tokens=512,
-            system=system,
+            # Single cache breakpoint on the system block caches everything
+            # earlier in the prefix (the Intent tool schema) plus the system
+            # prompt itself — the whole stable, per-seat-constant head.
+            system=[
+                {
+                    "type": "text",
+                    "text": system,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": m.role, "content": m.content} for m in transcript],
             tools=[INTENT_TOOL],
             tool_choice={"type": "tool", "name": "submit_intent"},
@@ -37,8 +53,11 @@ class AnthropicModel:
             intent = Intent.model_validate(block.input)
         except ValidationError as exc:
             raise ModelError(f"tool input is not a valid Intent: {exc}") from exc
+        usage = resp.usage
+        cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+        cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
         return DecideResult(
             intent=intent,
-            input_tokens=resp.usage.input_tokens,
-            output_tokens=resp.usage.output_tokens,
+            input_tokens=usage.input_tokens + cache_read + cache_creation,
+            output_tokens=usage.output_tokens,
         )

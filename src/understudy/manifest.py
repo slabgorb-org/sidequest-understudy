@@ -10,7 +10,13 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from understudy.persona.model import load_all_archetypes
 
-DEFAULT_MODEL = "claude_p/haiku"  # bills to the operator's plan, not per-token API spend
+# claude -p on haiku, billed to the operator's subscription (NOT the metered
+# API). This only holds because ClaudePModel strips ANTHROPIC_API_KEY from the
+# child env (see claude_p_model.py) — `claude -p` prefers that key over plan
+# OAuth and would otherwise bill per-token, uncached. Trade-off: claude_p
+# reports zero tokens, so max_tokens_total does not bound these seats (plan
+# billing is flat, so there is no runaway-$ risk; wall_clock + turn cap guard).
+DEFAULT_MODEL = "claude_p/haiku"
 
 
 class ManifestError(Exception):
