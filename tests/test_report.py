@@ -121,3 +121,14 @@ def test_spans_error_is_loud_in_report(tmp_path):
     md = (out / "report.md").read_text()
     assert "SPANS MISSING" in md
     assert not (out / "spans.jsonl").exists()
+
+
+def test_write_report_uses_injected_run_dir(tmp_path):
+    out_dir = tmp_path / "premade-r1"
+    out_dir.mkdir()
+    out = write_report(
+        tmp_path, _manifest(), [], [], spans=None, spans_error=None, run_dir=out_dir
+    )
+    assert out == out_dir
+    assert (out_dir / "report.md").exists()
+    assert (out_dir / "findings.json").exists()
