@@ -48,3 +48,22 @@ def test_validate_passes_when_all_seat_files_present(tmp_path):
     (tmp_path / "state").mkdir()
     (tmp_path / "state" / "seat-1.json").write_text("{}")
     validate_reconnect_dir(tmp_path, [1])  # no raise
+
+
+from understudy.manifest import RunManifest, SeatSpec
+from understudy.orchestrate.run import run_table
+
+
+async def test_run_table_reconnect_missing_seat_raises_before_launch(tmp_path):
+    rc = tmp_path / "rc"
+    (rc / "state").mkdir(parents=True)  # state/ exists but no seat-1.json
+    manifest = RunManifest(
+        name="x",
+        genre="g",
+        world="w",
+        session_url="http://x",
+        seats=[SeatSpec(archetype="mechanics_first", model="fake")],
+        capture_spans=False,
+    )
+    with pytest.raises(ManifestError, match="seat 1"):
+        await run_table(manifest, out_root=tmp_path / "reports", reconnect=rc)
