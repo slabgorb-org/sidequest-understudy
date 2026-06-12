@@ -54,7 +54,12 @@ async def run_table(
         runners: list[SeatRunner] = []
         seat_contexts: list[tuple[int, object]] = []  # (idx, BrowserContext)
         for idx, spec in bot_seats:
-            context = await browser.new_context(**reconnect_context_kwargs(reconnect, idx))
+            context_kwargs = reconnect_context_kwargs(reconnect, idx)
+            if headed:
+                # Watching it: fill the real OS window. Headless keeps Playwright's
+                # deterministic 1280×720 default so the tested breakpoint doesn't shift.
+                context_kwargs["no_viewport"] = True
+            context = await browser.new_context(**context_kwargs)
             seat_contexts.append((idx, context))
             page = await context.new_page()
             await page.goto(manifest.session_url)
