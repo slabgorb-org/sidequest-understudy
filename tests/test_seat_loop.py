@@ -42,6 +42,7 @@ async def test_seat_runs_script_and_records_transcript(page):
         world="beneath_sunden",
         genre="caverns_and_claudes",
         party_size=1,
+        name_theme="mash",
     )
     rows = await runner.run()
     assert len(rows) == 3
@@ -67,6 +68,7 @@ async def test_failed_resolution_emits_signal(page):
         world="beneath_sunden",
         genre="caverns_and_claudes",
         party_size=1,
+        name_theme="mash",
     )
     rows = await runner.run()
     assert rows[0].resolution == "failed"
@@ -94,6 +96,7 @@ async def test_token_ledger_breach_stops_gracefully(page):
         world="beneath_sunden",
         genre="caverns_and_claudes",
         party_size=1,
+        name_theme="mash",
     )
     rows = await runner.run()
     assert len(rows) < 10  # stopped at the ceiling, partial transcript kept

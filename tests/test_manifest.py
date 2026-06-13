@@ -32,3 +32,19 @@ def test_missing_session_url_fails_loud(tmp_path):
     p.write_text("name: t\ngenre: g\nworld: w\nseats: [hesitant]\nturns: 2\n")
     with pytest.raises(ManifestError):
         load_manifest(p)
+
+
+def test_name_theme_defaults_to_mash(tmp_path):
+    p = tmp_path / "run.yaml"
+    p.write_text("name: t\ngenre: g\nworld: w\nsession_url: http://x/p\nseats: [hesitant]\n")
+    assert load_manifest(p).name_theme == "mash"
+
+
+def test_unknown_name_theme_fails_loud(tmp_path):
+    p = tmp_path / "run.yaml"
+    p.write_text(
+        "name: t\ngenre: g\nworld: w\nsession_url: http://x/p\n"
+        "seats: [hesitant]\nname_theme: downton_abbey\n"
+    )
+    with pytest.raises(ManifestError, match="downton_abbey"):
+        load_manifest(p)

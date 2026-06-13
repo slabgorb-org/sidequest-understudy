@@ -23,6 +23,7 @@ from understudy.persona.prompts import (
     VERBOSITY_CHAR_CAP,
     WAIT_POLL_SECONDS,
     build_system_prompt,
+    name_for_seat,
 )
 from understudy.types import FrictionSignal, Intent, IntentKind, SignalKind, TranscriptRow
 
@@ -58,6 +59,7 @@ class SeatRunner:
         world: str,
         genre: str,
         party_size: int,
+        name_theme: str,
     ):
         self.seat = seat
         self.archetype = archetype
@@ -69,7 +71,11 @@ class SeatRunner:
         self.ledger = ledger
         self.deadline = deadline
         self._system = build_system_prompt(
-            archetype, world=world, genre=genre, party_size=party_size
+            archetype,
+            world=world,
+            genre=genre,
+            party_size=party_size,
+            player_name=name_for_seat(seat, theme=name_theme),
         )
         self._history: list[Message] = []
         self._intents: list[Intent | None] = []
