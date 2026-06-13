@@ -73,6 +73,16 @@ seats:
   - human                                       # not driven; join it yourself
 ```
 
+**Per-seat host.** A loopback `session_url` (`localhost` / `127.0.0.1`) is
+rewritten per seat to `player{N}.local` (seat 1 → `player1.local`, seat 2 →
+`player2.local`, …), with port and path preserved so every seat still joins the
+same session slug. The server resolves the *human* player identity from the Host
+header (ADR-119), so this gives each bot a distinct identity and a distinct
+browser origin — matching real play, where players are different people on
+different machines, instead of one `localhost` human driving every seat. Add the
+aliases once to `/etc/hosts` (`127.0.0.1 player1.local …`). A non-loopback
+`session_url` (a real deployment behind Cloudflare Access) is left untouched.
+
 Optional fields and their defaults:
 
 | Field               | Default                  | Meaning |

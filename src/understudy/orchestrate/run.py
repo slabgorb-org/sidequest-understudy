@@ -5,8 +5,10 @@ browser. Composition falls out; nothing here knows about '2 and 2'."""
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from playwright.async_api import async_playwright
@@ -23,6 +25,36 @@ from understudy.orchestrate.reconnect import (
     seat_state_path,
     validate_reconnect_dir,
 )
+
+
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+_PLAYER_HOST = re.compile(r"player\d+\.local\Z")
+
+
+def seat_session_url(session_url: str, seat: int) -> str:
+    """Give each seat its own loopback hostname: ``player{seat}.local``.
+
+    The server resolves the *human* player identity from the Host header
+    (``player_identity.resolve_player_identity``, ADR-119); local dev is meant to
+    distinguish players exactly this way (player1.local, player2.local — mapped to
+    127.0.0.1 in /etc/hosts). Sharing ``localhost`` hands every seat the same human
+    identity and the same browser origin, a one-human-drives-N-seats state that
+    never occurs in real play and only invites bugs. Scheme, port, and path are
+    preserved, so the deterministic session slug is untouched and all seats land in
+    the same multiplayer session. A non-loopback host (a real deployment behind
+    Cloudflare Access, where identity comes from the Cf-Access email) is returned
+    unchanged — no rewrite, no silent breakage.
+    """
+    if seat < 1:
+        raise ValueError(f"seat is 1-based; got {seat!r}")
+    parts = urlsplit(session_url)
+    host = parts.hostname or ""
+    if host not in _LOOPBACK_HOSTS and not _PLAYER_HOST.match(host):
+        return session_url
+    netloc = f"player{seat}.local"
+    if parts.port is not None:
+        netloc = f"{netloc}:{parts.port}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
 
 async def run_table(
@@ -43,7 +75,8 @@ async def run_table(
     out_dir = resolve_run_dir(out_root, manifest.name)
     for idx, spec in enumerate(manifest.seats, start=1):
         if spec.archetype == "human":
-            print(f"seat {idx}: human — join {manifest.session_url} yourself")
+            # Join at this seat's own host so the human is a distinct player too.
+            print(f"seat {idx}: human — join {seat_session_url(manifest.session_url, idx)} yourself")
 
     ledger = TokenLedger(ceiling=manifest.max_tokens_total)
     deadline = time.monotonic() + manifest.wall_clock_minutes * 60.0
@@ -62,7 +95,7 @@ async def run_table(
             context = await browser.new_context(**context_kwargs)
             seat_contexts.append((idx, context))
             page = await context.new_page()
-            await page.goto(manifest.session_url)
+            await page.goto(seat_session_url(manifest.session_url, idx))
             runners.append(
                 SeatRunner(
                     seat=idx,
