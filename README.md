@@ -104,6 +104,21 @@ per-user-type finding.
 
 Add one by dropping a YAML file in `src/understudy/persona/archetypes/`.
 
+Each seat arrives at chargen with its **own character name already in mind**,
+assigned by seat index (`persona/prompts.py:name_for_seat`). A naive LLM faced
+with an empty free-text name field free-associates the same pet name ("Kael")
+from its own prior on every seat — it isn't reading a default off the screen,
+the bias is in the model — and the engine keys seated characters *by name*, so
+two same-named PCs in one session collapse onto a single slot.
+
+The names come in **themed sets** harvested from the Pennyfarthing persona
+themes (`THEME_SETS`), one set per table, so a save reads at a glance as a
+recognizable cast — the default `mash` table seats Hawkeye, Potter, Radar,
+Winchester… Pick another with `name_theme:` in the manifest (e.g. `firefly`,
+`discworld`, `princess_bride`); an unknown theme fails loud. Pre-deciding the name per seat keeps a table
+collision-free. A name is content the player brings, not interface knowledge, so
+the naivety invariant holds.
+
 ## Models
 
 Per-seat `model` spec is `<backend>/<model-id>`:

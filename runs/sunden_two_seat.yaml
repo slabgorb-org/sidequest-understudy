@@ -1,0 +1,16 @@
+# Two bots descend into Sünden together — one multiplayer table.
+# beneath_sunden is grave, lethal, Moria-as-tragedy: the deep is
+# procedurally generated past the surface camp, so a run that gets
+# both seats onto the rope and a few rooms down is already real data.
+name: sunden_two_seat
+genre: caverns_and_claudes
+world: beneath_sunden
+session_url: http://localhost:5173   # point at the lobby; bots navigate naively
+seats:
+  - engaged_generalist
+  - mechanics_first
+turns: 40                     # chargen costs ~12 interactions; 40 reaches the descent
+wall_clock_minutes: 60
+max_tokens_total: 400000      # graceful stop + partial report at the ceiling
+capture_spans: true
+jaeger_url: http://localhost:16686

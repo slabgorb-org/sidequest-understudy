@@ -9,6 +9,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from understudy.persona.model import load_all_archetypes
+from understudy.persona.prompts import THEME_SETS
 
 # claude -p on haiku, billed to the operator's subscription (NOT the metered
 # API). This only holds because ClaudePModel strips ANTHROPIC_API_KEY from the
@@ -45,6 +46,7 @@ class RunManifest(BaseModel):
     max_tokens_total: int | None = None
     capture_spans: bool = True
     jaeger_url: str = "http://localhost:16686"
+    name_theme: str = "mash"  # which persona-theme roster the seats' PC names come from
 
     @field_validator("seats", mode="before")
     @classmethod
@@ -65,4 +67,8 @@ def load_manifest(path: Path) -> RunManifest:
     for seat in m.seats:
         if seat.archetype != "human" and seat.archetype not in known:
             raise ManifestError(f"unknown archetype {seat.archetype!r} (known: {sorted(known)})")
+    if m.name_theme not in THEME_SETS:
+        raise ManifestError(
+            f"unknown name_theme {m.name_theme!r} (known: {sorted(THEME_SETS)})"
+        )
     return m

@@ -20,6 +20,124 @@ VERBOSITY_CHAR_CAP: dict[str, int] = {"low": 160, "medium": 300, "high": 450}
 # decisiveness → seconds a waiting bot sleeps before re-perceiving
 WAIT_POLL_SECONDS: dict[str, float] = {"low": 8.0, "medium": 5.0, "high": 2.0}
 
+# A real player walks up to chargen with a name already in their head; a naive
+# LLM does not. Faced with an empty free-text field it free-associates from its
+# own prior and types the same pet name — "Kael" — letter by letter, on every
+# seat independently. It is not reading a default off the screen; the bias is in
+# the model. The collision that follows is not cosmetic: the engine keys a
+# seated character by NAME (snapshot.player_seats values, character_locations),
+# so two same-named PCs in one session collapse onto a single name slot.
+#
+# We hand each seat a name drawn from a single THEME SET, indexed by its 1-based
+# seat number: distinct within a table (no collision) AND a coherent recognizable
+# cast, so a test save reads at a glance as "the M*A*S*H table" rather than a
+# pile of anonymous PCs. The rosters are harvested from the Pennyfarthing persona
+# theme files; they are baked in rather than read at runtime so understudy keeps
+# no live filesystem dependency on a sibling repo. A name is content the player
+# brings — not a control, rule, or affordance — so the naivety invariant holds.
+THEME_SETS: dict[str, tuple[str, ...]] = {
+    "mash": (
+        "Hawkeye",
+        "Potter",
+        "Radar",
+        "Winchester",
+        "Margaret",
+        "Mulcahy",
+        "Klinger",
+        "Sidney",
+        "Frank",
+    ),
+    "princess_bride": (
+        "Inigo",
+        "Fezzik",
+        "Vizzini",
+        "Westley",
+        "Buttercup",
+        "Humperdinck",
+        "Max",
+        "Grandfather",
+    ),
+    "lord_of_the_rings": (
+        "Aragorn",
+        "Gandalf",
+        "Legolas",
+        "Gimli",
+        "Frodo",
+        "Sam",
+        "Pippin",
+        "Bilbo",
+        "Elrond",
+        "Gollum",
+        "Boromir",
+        "Saruman",
+    ),
+    "discworld": (
+        "Vetinari",
+        "Carrot",
+        "Granny",
+        "Moist",
+        "Ponder",
+        "Igor",
+        "Leonard",
+        "Sacharissa",
+        "Adora",
+        "Lu-Tze",
+        "DEATH",
+    ),
+    "star_trek_tng": (
+        "Picard",
+        "Data",
+        "Geordi",
+        "Worf",
+        "Beverly",
+        "Deanna",
+        "Miles",
+        "Spock",
+        "Q",
+    ),
+    "the_expanse": (
+        "Holden",
+        "Naomi",
+        "Amos",
+        "Alex",
+        "Drummer",
+        "Avasarala",
+        "Investigator",
+    ),
+    "firefly": (
+        "Malcolm",
+        "Zoe",
+        "Jayne",
+        "Kaylee",
+        "River",
+        "Simon",
+        "Inara",
+        "Hoban",
+        "Book",
+    ),
+}
+
+DEFAULT_NAME_THEME = "mash"
+
+
+def name_for_seat(seat: int, *, theme: str = DEFAULT_NAME_THEME) -> str:
+    """The character name the player at this 1-based seat already has in mind.
+
+    Drawn from ``theme``'s roster and distinct per seat for any table no larger
+    than that roster (every bundled set holds >= 7 names), so two bots never
+    choose the same name — which the engine, keying characters by name, cannot
+    disambiguate. Unknown ``theme`` fails loud: no silent fallback to a default.
+    """
+    if seat < 1:
+        raise ValueError(f"seat is 1-based; got {seat!r}")
+    try:
+        roster = THEME_SETS[theme]
+    except KeyError:
+        raise ValueError(
+            f"unknown name theme {theme!r}; known: {sorted(THEME_SETS)}"
+        ) from None
+    return roster[(seat - 1) % len(roster)]
+
 _FRAME = """\
 You are a person playing an online multiplayer tabletop-style game you have
 never seen before. Each turn you are shown what is currently on your screen,
@@ -80,12 +198,29 @@ def _table_contract(world: str, genre: str, party_size: int) -> str:
     )
 
 
-def build_system_prompt(arch: Archetype, *, world: str, genre: str, party_size: int) -> str:
+def _your_character(player_name: str) -> str:
+    """The name the player already has in mind. Intent, not interface: it never
+    names the chargen control, only what the player would type when they meet it."""
+    return "\n".join(
+        [
+            "## Your character",
+            f'You already have a name in mind for your character: "{player_name}". '
+            "When the game asks you to name or create your character, use that "
+            "name. It is yours — do not borrow a name the game suggests to you, "
+            "and do not settle for a generic default.",
+        ]
+    )
+
+
+def build_system_prompt(
+    arch: Archetype, *, world: str, genre: str, party_size: int, player_name: str
+) -> str:
     cap = VERBOSITY_CHAR_CAP[arch.verbosity]
     return "\n".join(
         [
             _FRAME,
             _table_contract(world, genre, party_size),
+            _your_character(player_name),
             "## Who you are as a player",
             arch.prompt_fragment.strip(),
             _LEAN[_lean_bucket(arch.narrative_vs_mechanical)],
