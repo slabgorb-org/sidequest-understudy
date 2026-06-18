@@ -1,0 +1,27 @@
+# Two bots sit down at one Fate table in 1926 Paris.
+# pulp_noir binds the Fate Core ruleset (rules.yaml: ruleset: fate, ADR-144),
+# and annees_folles is a live world — same setting as the 2026-06-16/17 Fate eval,
+# so this stream is directly comparable to that session's findings.
+#
+# PURPOSE: generate a live latency data stream. Every turn the server emits
+# turn_complete with phase_durations_ms / phase_call_counts (the OTEL Timing tab,
+# story 124-3). 'preprocess_llm' is the intent-router Haiku pass (ADR-113) — if it
+# dominates duration or shows call_counts > 1, that's the suspected thrash, on tape.
+#
+# NOTE: `turns` = understudy perceive->decide->act cycles (Playwright/LLM actions),
+# NOT game rounds. Chargen + lobby navigation eat a chunk; ~200 cycles is roughly
+# ~20 rounds of real play if the seats aren't blocked. The wall-clock and token
+# ceilings are set generous so the 200-turn cap is the binding stop, not a premature
+# cutoff — we want the full stream even if the narrator is slow (slow IS the data).
+name: annees_folles_two_seat
+genre: pulp_noir
+world: annees_folles
+session_url: http://localhost:5173   # point at the lobby; bots navigate naively
+seats:
+  - engaged_generalist               # balanced driver — exercises the general turn path
+  - mechanics_first                  # pushes crunch -> confrontations -> the intent-router/dispatch path we're probing
+turns: 200
+wall_clock_minutes: 480              # 8h safety ceiling; turn cap should bind first
+max_tokens_total: 2000000           # graceful stop + partial report at the ceiling
+capture_spans: true                 # pull server-side narration.turn spans -> spans.jsonl
+jaeger_url: http://localhost:16686
