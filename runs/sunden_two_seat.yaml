@@ -9,8 +9,8 @@ session_url: http://localhost:5173   # point at the lobby; bots navigate naively
 seats:
   - engaged_generalist
   - mechanics_first
-turns: 40                     # chargen costs ~12 interactions; 40 reaches the descent
+turns: 150                    # chargen costs ~12 interactions; 150 reaches the descent
 wall_clock_minutes: 60
-max_tokens_total: 400000      # graceful stop + partial report at the ceiling
+max_tokens_total: 1000000000  # effectively uncapped (max plan, flat billing)
 capture_spans: true
 jaeger_url: http://localhost:16686

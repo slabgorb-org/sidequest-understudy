@@ -7,7 +7,7 @@ session_url: http://localhost:5173
 seats:
   - engaged_generalist
   - narrative_first
-turns: 8
-wall_clock_minutes: 15
-max_tokens_total: 150000
+turns: 150
+wall_clock_minutes: 60
+max_tokens_total: 1000000000
 capture_spans: false

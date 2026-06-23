@@ -9,6 +9,7 @@ Exit codes (mirrors scripts/playtest.py conventions):
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 
 import typer
@@ -22,6 +23,11 @@ app = typer.Typer(add_completion=False)
 @app.callback()
 def main() -> None:
     """Understudy: automated playtest client for SideQuest."""
+    # Line-buffer stdout so a run is watchable in real time even when its output
+    # is piped (tee, a background task, `just understudy`). Without this, Python
+    # block-buffers a non-TTY stdout and every per-turn line stays hidden until
+    # the process exits — a run looks frozen when it is actually playing.
+    sys.stdout.reconfigure(line_buffering=True)
 
 
 @app.command()

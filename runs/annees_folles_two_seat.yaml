@@ -22,6 +22,6 @@ seats:
   - mechanics_first                  # pushes crunch -> confrontations -> the intent-router/dispatch path we're probing
 turns: 200
 wall_clock_minutes: 480              # 8h safety ceiling; turn cap should bind first
-max_tokens_total: 2000000           # graceful stop + partial report at the ceiling
+max_tokens_total: 1000000000        # effectively uncapped (max plan, flat billing)
 capture_spans: true                 # pull server-side narration.turn spans -> spans.jsonl
 jaeger_url: http://localhost:16686
