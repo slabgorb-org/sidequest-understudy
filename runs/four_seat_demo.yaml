@@ -9,8 +9,8 @@ seats:
   - mechanics_first
   - narrative_first
   - hesitant
-turns: 40                     # chargen alone costs ~12 interactions; 40 reaches real play
+turns: 150                    # chargen alone costs ~12 interactions; 150 reaches real play
 wall_clock_minutes: 60
-max_tokens_total: 400000      # graceful stop + partial report at the ceiling
+max_tokens_total: 1000000000  # effectively uncapped (max plan, flat billing)
 capture_spans: true
 jaeger_url: http://localhost:16686
