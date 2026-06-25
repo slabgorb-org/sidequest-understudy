@@ -1,25 +1,21 @@
 """Per-seat model factory. Spec form: '<backend>/<model-id>' (e.g.
 'anthropic/claude-haiku-4-5-20251001', 'ollama/qwen3:8b', 'claude_p/haiku',
-or bare 'fake' for the scripted lane). Unknown backend = loud failure."""
+or bare 'fake' for the scripted lane). Unknown backend = loud failure.
+
+Thin understudy binding over seat_core's generic factory: every real backend is
+constructed for understudy's `Intent` payload, and 'fake' returns the
+Intent-defaulting `FakeActionModel` (no explicit default value required, unlike
+seat_core's generic `make_model('fake', ...)`)."""
 
 from __future__ import annotations
 
+from seat_core.llm.factory import make_model as _make_model
+
 from understudy.brain.core import ActionModel, FakeActionModel
-from understudy.brain.llm.anthropic_model import AnthropicModel
-from understudy.brain.llm.claude_p_model import ClaudePModel
-from understudy.brain.llm.ollama_model import OllamaModel
+from understudy.types import Intent
 
 
 def make_model(spec: str) -> ActionModel:
-    backend, _, model_id = spec.partition("/")
-    match backend:
-        case "anthropic":
-            return AnthropicModel(model_id)
-        case "ollama":
-            return OllamaModel(model_id)
-        case "claude_p":
-            return ClaudePModel(model_id or "haiku")
-        case "fake":
-            return FakeActionModel([])
-        case _:
-            raise ValueError(f"unknown model backend: {spec!r}")
+    if spec.partition("/")[0] == "fake":
+        return FakeActionModel([])
+    return _make_model(spec, Intent)

@@ -81,7 +81,7 @@ async def test_token_ledger_breach_stops_gracefully(page):
     class CostlyFake(FakeActionModel):
         async def decide(self, system, transcript):
             result = await super().decide(system, transcript)
-            return type(result)(intent=result.intent, input_tokens=600, output_tokens=0)
+            return type(result)(value=result.value, input_tokens=600, output_tokens=0)
 
     runner = SeatRunner(
         seat=1,
