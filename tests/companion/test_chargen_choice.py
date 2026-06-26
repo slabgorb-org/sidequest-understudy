@@ -101,13 +101,20 @@ def _freeform_scene() -> dict:
 
 def _server_resolves(choice_str: object, choices: list[dict]) -> int | None:
     """Faithful reproduction of ``chargen_mixin.py::_chargen_scene`` select-scene
-    resolution. Returns the 0-based index the server would ``apply_choice``, or
-    None — meaning the server falls through to ``apply_freeform`` (the stall on a
-    select scene). Contract oracle; keep in sync with the server."""
+    resolution for an InProgress builder. Returns the 0-based index the server
+    would ``apply_choice``, or None — meaning the server falls through to
+    ``apply_freeform`` (the stall on a select scene). Contract oracle; keep in
+    sync with the server.
+
+    Scope: the server catches only ``ValueError`` from ``int()`` (the companion
+    always sends a str, so ``TypeError`` cannot arise), so this mirrors that
+    exactly. It models the InProgress select path only — the server's
+    ``AwaitingFollowup`` early-return (a separate ``answer_followup`` branch) is
+    NOT modelled here; do not use this oracle to reason about followup scenes."""
     try:
         n = int(choice_str)  # type: ignore[arg-type]
         return max(0, n - 1)
-    except (ValueError, TypeError):
+    except ValueError:
         for i, c in enumerate(choices):
             if c["label"].casefold() == str(choice_str).casefold():
                 return i
@@ -120,7 +127,9 @@ def _sent_chargen_choice(sent: list[dict]) -> object:
     return cc["payload"]["choice"]
 
 
-async def _run_select(brain_text: str, choices: list[dict] = _CLASSES) -> object:
+async def _run_select(brain_text: str, choices: list[dict] | None = None) -> object:
+    # None sentinel, not a module-level mutable default (lang-review #2).
+    choices = choices if choices is not None else _CLASSES
     transport = FakeTransport([_CONNECTED, _select_scene(choices), _ENDED])
     brain = _brain(CompanionIntent(kind=IntentKind.ACT, text=brain_text))
     await run_companion(_defn(), transport, brain, rng=random.Random(0))
@@ -150,13 +159,47 @@ async def test_select_choice_resolves_to_last_option_no_off_by_one():
     assert _server_resolves(choice, _CLASSES) == 2
 
 
-async def test_select_choice_is_server_resolvable_in_range_not_prose():
-    choice = await _run_select("Expert, obviously! I am precise.")
+async def test_select_choice_is_a_selector_not_prose():
+    # FORMAT invariant (distinct from the index-value tests above): the wire value
+    # is a bare index or an exact label — never a prose paragraph. Strengthened
+    # from the prior strictly-weaker in-range check (Reviewer 159-7 round 1).
+    choice = str(await _run_select("Expert, obviously! I am precise."))
+    labels = {c["label"].casefold() for c in _CLASSES}
+    assert choice.isdigit() or choice.casefold() in labels, (
+        f"select choice {choice!r} must be a bare index or exact label, never prose"
+    )
+
+
+# --- tier-3: a bare numeric reply maps through the index path (off-by-one guard) -
+
+
+async def test_select_bare_index_reply_maps_first_option():
+    # The brain answers the 1-based prompt with just "1" — pure index path.
+    choice = await _run_select("1")
+    assert _server_resolves(choice, _CLASSES) == 0
+
+
+async def test_select_bare_index_reply_maps_middle_option():
+    choice = await _run_select("2")
+    assert _server_resolves(choice, _CLASSES) == 1
+
+
+async def test_select_bare_index_reply_maps_last_option_no_off_by_one():
+    # Index path off-by-one guard: "3" must land on Mage (index 2), not Expert.
+    choice = await _run_select("3")
+    assert _server_resolves(choice, _CLASSES) == 2
+
+
+async def test_select_out_of_range_index_falls_back_in_range(caplog):
+    # "4" exceeds the 3 options → unmappable → loud first-option fallback, not an
+    # out-of-range index the server would reject.
+    with caplog.at_level(logging.WARNING, logger="companion.run"):
+        choice = await _run_select("4")
     idx = _server_resolves(choice, _CLASSES)
     assert idx is not None and 0 <= idx < len(_CLASSES), (
-        f"select choice {choice!r} must be a server-resolvable in-range selector, "
-        "never a prose paragraph"
+        f"out-of-range index {choice!r} must fall back to an in-range option"
     )
+    assert any("unmappable" in r.getMessage() for r in caplog.records if r.name == "companion.run")
 
 
 # --- AC3: freeform scenes still send the brain's prose verbatim ------------------
@@ -175,16 +218,62 @@ async def test_freeform_scene_sends_prose_answer():
 
 
 async def test_unmappable_select_pick_does_not_stall_and_logs(caplog):
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="companion.run"):
         choice = await _run_select("I refuse to be labelled by your ledger.")
     idx = _server_resolves(choice, _CLASSES)
     assert idx is not None and 0 <= idx < len(_CLASSES), (
         "an unmappable chargen pick must still send a server-resolvable choice "
         "(never forward unresolvable prose that stalls the table)"
     )
-    assert any(r.levelno >= logging.WARNING for r in caplog.records), (
-        "an unmappable chargen pick must log loudly (No Silent Fallbacks)"
+    # Scoped to companion.run + the message text so a stray third-party WARNING
+    # cannot satisfy this (Reviewer 159-7 round 1).
+    assert any(
+        "unmappable" in r.getMessage() for r in caplog.records if r.name == "companion.run"
+    ), "an unmappable chargen pick must log loudly from companion.run (No Silent Fallbacks)"
+
+
+async def test_ambiguous_substring_pick_falls_back_and_logs(caplog):
+    # Two labels appear in the prose ("Warrior", "Expert") → _match_choice finds
+    # >1 hit → None → loud first-option fallback (not a silently-wrong specific pick).
+    with caplog.at_level(logging.WARNING, logger="companion.run"):
+        choice = await _run_select("Warrior or Expert — hard call, honestly.")
+    assert _server_resolves(choice, _CLASSES) == 0, "ambiguous pick must fall back to the first option"
+    assert any(
+        "unmappable" in r.getMessage() for r in caplog.records if r.name == "companion.run"
+    ), "an ambiguous (multi-label) pick must log loudly"
+
+
+# --- select + write-in: choices present AND allows_freeform → prose is a valid answer
+
+
+def _select_freeform_scene(choices: list[dict]) -> dict:
+    return {
+        "type": "CHARACTER_CREATION",
+        "payload": {
+            "phase": "scene",
+            "prompt": "Pick a path — or write your own.",
+            "choices": choices,
+            "input_type": "select",
+            "allows_freeform": True,
+        },
+    }
+
+
+async def test_select_freeform_hybrid_unmappable_pick_is_written_in(caplog):
+    # A select scene that ALSO allows free text: an unmappable pick is a legitimate
+    # write-in, sent verbatim — NOT the first-option fallback, and silent (no warning).
+    transport = FakeTransport([_CONNECTED, _select_freeform_scene(_CLASSES), _ENDED])
+    brain = _brain(CompanionIntent(kind=IntentKind.ACT, text="Wild card — I forge my own path."))
+    with caplog.at_level(logging.WARNING, logger="companion.run"):
+        await run_companion(_defn(), transport, brain, rng=random.Random(0))
+    choice = _sent_chargen_choice(transport.sent)
+    assert choice == "Wild card — I forge my own path.", (
+        "a select+allows_freeform scene must send an unmappable pick verbatim as a write-in"
     )
+    assert _server_resolves(choice, _CLASSES) is None, "the write-in is not a select index (server applies freeform)"
+    assert not any(
+        r.name == "companion.run" and r.levelno >= logging.WARNING for r in caplog.records
+    ), "a legitimate write-in on an allows_freeform scene must be silent (no fallback warning)"
 
 
 # --- The 'never stall chargen' YIELD fallback stays server-resolvable ------------
