@@ -21,8 +21,11 @@ def connect_frame(defn: CompanionDef) -> dict:
     return {
         "type": "SESSION_EVENT",
         "payload": {
+            # The room/session slug the human is in — same game_slug → same
+            # SessionRoom (the /ws route carries NO path slug; the server reads it
+            # from this payload field, exactly as the React client does).
             "event": "connect",
-            "game_slug": defn.session_url,  # slug is carried by the URL path server-side
+            "game_slug": defn.game_slug,
             "player_name": defn.name,
             "companion_of": defn.companion_of,
             "relationship": defn.role.value,
