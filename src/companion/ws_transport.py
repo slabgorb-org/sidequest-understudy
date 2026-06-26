@@ -5,14 +5,23 @@ becomes None — any other error propagates (a genuine bug must never be swallow
 from __future__ import annotations
 
 import json
+from typing import Protocol
 
 import websockets
 
 from companion.protocol import Transport
 
 
+class _WSConnection(Protocol):
+    """The raw websockets connection contract this adapter wraps: text frames in
+    and out. Structural, so both `websockets.connect(...)` and a test double satisfy it."""
+
+    async def send(self, data: str) -> None: ...
+    async def recv(self) -> str: ...
+
+
 class WebSocketTransport(Transport):
-    def __init__(self, ws) -> None:
+    def __init__(self, ws: _WSConnection) -> None:
         self._ws = ws
 
     async def send(self, frame: dict) -> None:

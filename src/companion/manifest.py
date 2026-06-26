@@ -28,7 +28,8 @@ class CompanionDef(BaseModel):
     companion_of: str  # the OWNER's identity (Cf-Access email / dev Host)
     genre: str
     world: str
-    session_url: str  # explicit, never derived
+    game_slug: str  # the human's room/session slug — the companion joins THIS room
+    session_url: str  # the WS endpoint to dial (e.g. ws://host:port/ws), not the room
     model: str = DEFAULT_MODEL
     decide_timeout_s: float = 30.0
 

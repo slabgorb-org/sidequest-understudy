@@ -89,9 +89,10 @@ def _chargen_situation(payload: dict) -> str:
 
 
 def _chargen_choice(intent: CompanionIntent) -> str:
-    # The brain answers chargen in character (ACT prose) or yields. We forward the
-    # prose verbatim; a YIELD/empty decision maps to "0" (first option) so chargen
-    # always completes rather than stalling the table.
+    # Forward the brain's ACT prose verbatim. ANY other intent kind (YIELD, ASIDE,
+    # ROLL, BEAT, DEFEND — e.g. a confused brain answering chargen with a combat
+    # verb) maps to "0" (the first option) so chargen always completes rather than
+    # stalling the table.
     if intent.kind is IntentKind.ACT and intent.text:
         return intent.text
     return "0"
