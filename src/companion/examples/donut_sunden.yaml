@@ -12,8 +12,10 @@
 # WS Host header — sidequest-server/.../player_identity.py).
 #
 #   game_slug    MUST equal the room slug the human (Keith) joins in the UI.
-#                Start the UI session with exactly "donut-playtest" or change
-#                this value to match.
+#                The UI MINTS this slug (date+world+mp+hash) at "Start or Join
+#                Adventure" — it is not a friendly name you can pre-pick. Copy it
+#                from the human's URL (/play/<slug>) into the game_slug field
+#                below before launching.
 #
 #   companion_of MUST equal the human's RESOLVED identity, i.e. the Host header
 #                (port-stripped) their browser presents on its WS connection to

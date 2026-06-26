@@ -99,14 +99,16 @@ def _chargen_choice(intent: CompanionIntent, payload: dict) -> str:
     """Map the brain's decision to a choice string the SERVER can resolve.
 
     The server (sidequest-server .../chargen_mixin.py::_chargen_scene) resolves a
-    select-scene choice as a 1-based index, else an EXACT label match, else
-    ``apply_freeform``. Forwarding the brain's ACT prose verbatim therefore stalls
-    a select scene (prose matches neither index nor exact label) — the 159-7 bug.
+    select-scene choice as a 1-based index, else a case-insensitive exact label
+    match, else ``apply_freeform``. Forwarding the brain's ACT prose verbatim
+    therefore stalls a select scene (prose matches neither index nor exact
+    label) — the 159-7 bug.
 
     Select scene → map the pick to a 1-based index string. Freeform scene → the
-    prose IS the answer. A non-ACT/YIELD pick takes the first option; an
-    unmappable ACT pick on a select scene logs loudly and falls back to the first
-    option (never stall, never silently send unresolvable prose).
+    prose IS the answer. On a select scene, a non-ACT/YIELD pick takes the first
+    option, and an unmappable ACT pick logs loudly and falls back to the first
+    option (never stall, never silently send unresolvable prose). On a freeform
+    scene, a non-ACT/YIELD pick logs and sends a "." placeholder.
     """
     choices = payload.get("choices") or []
     allows_freeform = bool(payload.get("allows_freeform"))
@@ -144,8 +146,8 @@ def _chargen_choice(intent: CompanionIntent, payload: dict) -> str:
 def _match_choice(text: str, choices: list[dict]) -> int | None:
     """Deterministically map the brain's prose to a 0-based choice index, or None
     when it matches no option or is ambiguous (the caller fails loud). Order:
-    exact label, then a unique case-insensitive label substring, then a leading
-    1-based index token. No fuzzy scoring — ambiguity returns None."""
+    case-insensitive exact label, then a unique case-insensitive label substring,
+    then a leading 1-based index token. No fuzzy scoring — ambiguity returns None."""
     t = text.strip()
     tl = t.casefold()
     labels = [str(c.get("label", "")).strip() for c in choices]
