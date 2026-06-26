@@ -93,7 +93,15 @@ async def test_companion_plays_a_full_scripted_session():
     # then the dice request answered
     assert "CHARACTER_CREATION" in types
     cc = next(f for f in server.sent if f["type"] == "CHARACTER_CREATION")
-    assert cc["payload"]["choice"] == "Show cat, OBVIOUSLY."
+    # 159-7: the choice must be a SERVER-RESOLVABLE selector for the picked option
+    # ("Show cat") — a 1-based index or the exact label — never the raw prose, which
+    # the server cannot resolve on a select scene (chargen stalls). The scripted
+    # fixture previously asserted the prose verbatim, enshrining the bug.
+    choice = cc["payload"]["choice"]
+    assert choice != "Show cat, OBVIOUSLY.", "must not forward raw prose as the choice"
+    assert choice == "1" or str(choice).casefold() == "show cat", (
+        f"chargen choice {choice!r} must be a server-resolvable selector for 'Show cat'"
+    )
     assert "PLAYER_ACTION" in types
     action = next(f for f in server.sent if f["type"] == "PLAYER_ACTION")
     assert action["payload"]["action"] == "I sniff and deign to lead."

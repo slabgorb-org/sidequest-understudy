@@ -6,7 +6,9 @@ never fabricates an action the persona did not choose."""
 
 from __future__ import annotations
 
+import logging
 import random
+import re
 
 from companion.actuation import actuate
 from companion.brain import build_turn_context, decide
@@ -20,6 +22,8 @@ from companion.protocol import (
     connect_frame,
 )
 from seat_core.core import StructuredModel
+
+logger = logging.getLogger(__name__)
 
 _PROMPT_KINDS = frozenset({"DICE_REQUEST", "CONFRONTATION", "FATE_DEFEND_REQUEST"})
 
@@ -53,7 +57,7 @@ async def run_companion(
                 build_turn_context(mirror, _chargen_situation(payload)),
                 defn.decide_timeout_s,
             )
-            await transport.send(chargen_choice_frame(_chargen_choice(intent)))
+            await transport.send(chargen_choice_frame(_chargen_choice(intent, payload)))
             continue
 
         if kind in _PROMPT_KINDS:
@@ -84,18 +88,85 @@ async def run_companion(
 def _chargen_situation(payload: dict) -> str:
     prompt = payload.get("prompt", "Create your character.")
     choices = payload.get("choices") or []
-    lines = [f"{i}: {c.get('label', '')}" for i, c in enumerate(choices)]
+    # 1-based, matching the server's choice resolution (chargen_mixin.py::
+    # _chargen_scene resolves an index as max(0, n - 1)). Showing the brain the
+    # same numbering the server expects keeps a bare-index reply off-by-one-free.
+    lines = [f"{i + 1}: {c.get('label', '')}" for i, c in enumerate(choices)]
     return f"{prompt}\n" + "\n".join(lines) if lines else prompt
 
 
-def _chargen_choice(intent: CompanionIntent) -> str:
-    # Forward the brain's ACT prose verbatim. ANY other intent kind (YIELD, ASIDE,
-    # ROLL, BEAT, DEFEND — e.g. a confused brain answering chargen with a combat
-    # verb) maps to "0" (the first option) so chargen always completes rather than
-    # stalling the table.
-    if intent.kind is IntentKind.ACT and intent.text:
-        return intent.text
-    return "0"
+def _chargen_choice(intent: CompanionIntent, payload: dict) -> str:
+    """Map the brain's decision to a choice string the SERVER can resolve.
+
+    The server (sidequest-server .../chargen_mixin.py::_chargen_scene) resolves a
+    select-scene choice as a 1-based index, else a case-insensitive exact label
+    match, else ``apply_freeform``. Forwarding the brain's ACT prose verbatim
+    therefore stalls a select scene (prose matches neither index nor exact
+    label) — the 159-7 bug.
+
+    Select scene → map the pick to a 1-based index string. Freeform scene → the
+    prose IS the answer. On a select scene, a non-ACT/YIELD pick takes the first
+    option, and an unmappable ACT pick logs loudly and falls back to the first
+    option (never stall, never silently send unresolvable prose). On a freeform
+    scene, a non-ACT/YIELD pick logs and sends a "." placeholder.
+    """
+    choices = payload.get("choices") or []
+    allows_freeform = bool(payload.get("allows_freeform"))
+    text = intent.text if (intent.kind is IntentKind.ACT and intent.text) else None
+
+    # Pure free-text scene (name/background): no fixed options — the prose answers.
+    if not choices:
+        if text is not None:
+            return text
+        logger.warning(
+            "chargen: free-text scene but the brain yielded with no text — "
+            "sending a placeholder so the table does not stall"
+        )
+        return "."
+
+    # Select scene: resolve the pick to a 1-based index the server accepts.
+    if text is not None:
+        idx = _match_choice(text, choices)
+        if idx is not None:
+            return str(idx + 1)
+        if allows_freeform:
+            return text  # a select+write-in scene accepts free text as the answer
+        logger.warning(
+            "chargen: unmappable pick %r against choices %r — defaulting to the "
+            "first option (never stall the table)",
+            text,
+            [c.get("label", "") for c in choices],
+        )
+        return "1"
+
+    # YIELD / non-ACT on a select scene: take the first option, never stall.
+    return "1"
+
+
+def _match_choice(text: str, choices: list[dict]) -> int | None:
+    """Deterministically map the brain's prose to a 0-based choice index, or None
+    when it matches no option or is ambiguous (the caller fails loud). Order:
+    case-insensitive exact label, then a unique case-insensitive label substring,
+    then a leading 1-based index token. No fuzzy scoring — ambiguity returns None."""
+    t = text.strip()
+    tl = t.casefold()
+    labels = [str(c.get("label", "")).strip() for c in choices]
+
+    # 1) exact label (case-insensitive)
+    for i, label in enumerate(labels):
+        if label and label.casefold() == tl:
+            return i
+    # 2) unique label appearing verbatim inside the prose ("Expert, obviously!")
+    hits = [i for i, label in enumerate(labels) if label and label.casefold() in tl]
+    if len(hits) == 1:
+        return hits[0]
+    # 3) leading 1-based index token ("2", "2.", "2) because…")
+    m = re.match(r"(\d+)", t)
+    if m:
+        n = int(m.group(1))
+        if 1 <= n <= len(choices):
+            return n - 1
+    return None
 
 
 def _prompt_situation(kind: str, payload: dict) -> str:
