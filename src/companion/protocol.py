@@ -41,6 +41,39 @@ def chargen_choice_frame(choice: str) -> dict:
     return {"type": "CHARACTER_CREATION", "payload": {"phase": "scene", "choice": choice}}
 
 
+def chargen_continue_frame() -> dict:
+    """Acknowledge a display-only scene (server ``input_type="continue"``)."""
+    return {"type": "CHARACTER_CREATION", "payload": {"phase": "continue"}}
+
+
+def chargen_story_frame(pronouns: str, background: str, description: str) -> dict:
+    """Answer the identity scene (server ``input_type="story"``) with the
+    structured fields the server's ``_chargen_story_confirm`` expects."""
+    return {
+        "type": "CHARACTER_CREATION",
+        "payload": {
+            "phase": "story_confirm",
+            "pronouns": pronouns,
+            "background": background,
+            "description": description,
+        },
+    }
+
+
+def chargen_portrait_skip_frame() -> dict:
+    """Skip the portrait step (server ``input_type="pick_portrait"``). A bot has
+    no portrait to pick and the daemon may be down — ``null`` is the skip path."""
+    return {
+        "type": "CHARACTER_CREATION",
+        "payload": {"phase": "portrait_confirm", "selected_portrait_ref": None},
+    }
+
+
+def chargen_confirmation_frame() -> dict:
+    """Commit the built character (server ``phase="confirmation"`` summary)."""
+    return {"type": "CHARACTER_CREATION", "payload": {"phase": "confirmation", "choice": "1"}}
+
+
 def player_action_frame(player_id: str, text: str, round_: int) -> dict:
     return {
         "type": "PLAYER_ACTION",
@@ -84,7 +117,9 @@ class StateMirror:
         self.round: int = 0
         self.last_narration: str = ""
         self.party_status: dict = {}
-        self.pending: tuple[str, dict] | None = None  # (kind, payload) of a roll/confrontation prompt
+        self.pending: tuple[str, dict] | None = (
+            None  # (kind, payload) of a roll/confrontation prompt
+        )
         self._turn_entries: list[dict] = []
 
     def apply(self, frame: dict) -> None:

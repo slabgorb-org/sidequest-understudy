@@ -19,6 +19,10 @@ from companion.protocol import (
     StateMirror,
     Transport,
     chargen_choice_frame,
+    chargen_confirmation_frame,
+    chargen_continue_frame,
+    chargen_portrait_skip_frame,
+    chargen_story_frame,
     connect_frame,
 )
 from seat_core.core import StructuredModel
@@ -26,6 +30,19 @@ from seat_core.core import StructuredModel
 logger = logging.getLogger(__name__)
 
 _PROMPT_KINDS = frozenset({"DICE_REQUEST", "CONFRONTATION", "FATE_DEFEND_REQUEST"})
+
+# Scene steps whose answer is a creative pick the brain must make. ``None`` covers
+# plain scenes that omit input_type. Steps not handled explicitly in
+# ``_chargen_response`` (stat_arrange / roll_the_bones / fate_*) fail loud — the
+# v1 (80%) boundary.
+_CHARGEN_BRAIN_INPUTS = frozenset({None, "choice", "stock", "name", "text"})
+
+
+class ChargenStepUnsupported(RuntimeError):
+    """A chargen step the companion does not drive yet — the ruleset-specific
+    stat_arrange / roll_the_bones / fate_* steps (the 80% boundary, Keith
+    2026-06-26). Raised loud so an unsupported genre is a visible finding, never a
+    garbage submission (SOUL: No Silent Fallbacks)."""
 
 
 async def run_companion(
@@ -50,14 +67,10 @@ async def run_companion(
         if kind == "SESSION_EVENT" and payload.get("event") == "ended":
             return
 
-        if kind == "CHARACTER_CREATION" and payload.get("phase") == "scene":
-            intent = await decide(
-                brain,
-                system,
-                build_turn_context(mirror, _chargen_situation(payload)),
-                defn.decide_timeout_s,
-            )
-            await transport.send(chargen_choice_frame(_chargen_choice(intent, payload)))
+        if kind == "CHARACTER_CREATION":
+            out = await _chargen_response(brain, system, mirror, defn, payload)
+            if out is not None:
+                await transport.send(out)
             continue
 
         if kind in _PROMPT_KINDS:
@@ -83,6 +96,67 @@ async def run_companion(
             if out is not None:
                 await transport.send(out)
             continue
+
+
+async def _chargen_response(
+    brain: StructuredModel,
+    system: str,
+    mirror: StateMirror,
+    defn: CompanionDef,
+    payload: dict,
+) -> dict | None:
+    """Drive one chargen frame to its server-resolvable response.
+
+    The real server keeps ``phase="scene"`` for every scene-stage step and puts
+    the actual step kind in ``input_type`` (choice/continue/story/pick_portrait/
+    stat_arrange/roll_the_bones/fate_*); it then emits ``phase="confirmation"`` to
+    commit and ``phase="complete"`` once the PC is built. Answering only
+    ``phase="scene"`` (the pre-fix bug) never finalises a character. We dispatch
+    on phase, then input_type. Returns the frame to send, ``None`` when the step
+    needs no reply (chargen complete). Raises ``ChargenStepUnsupported`` outside
+    the v1 (80%) path — the brain is consulted only for the creative steps."""
+    phase = payload.get("phase")
+    if phase == "complete":
+        return None  # PC built — the play loop takes over
+    if phase == "confirmation":
+        return chargen_confirmation_frame()
+    if phase != "scene":
+        raise ChargenStepUnsupported(f"unhandled chargen phase {phase!r}")
+
+    input_type = payload.get("input_type")
+    if input_type == "continue":
+        return chargen_continue_frame()  # display-only ack — no brain
+    if input_type == "pick_portrait":
+        return chargen_portrait_skip_frame()  # a bot has no portrait to pick
+    if input_type == "story":
+        intent = await decide(
+            brain,
+            system,
+            build_turn_context(mirror, _chargen_situation(payload)),
+            defn.decide_timeout_s,
+        )
+        # The cat describes herself; pronouns default neutral (the def carries no
+        # pronoun field — the voice, not the sheet, is load-bearing in play).
+        background = (
+            intent.text if (intent.kind is IntentKind.ACT and intent.text) else f"A {defn.species}."
+        )
+        return chargen_story_frame(
+            pronouns="they/them", background=background, description=f"A {defn.species}."
+        )
+    if input_type in _CHARGEN_BRAIN_INPUTS:
+        intent = await decide(
+            brain,
+            system,
+            build_turn_context(mirror, _chargen_situation(payload)),
+            defn.decide_timeout_s,
+        )
+        return chargen_choice_frame(_chargen_choice(intent, payload))
+
+    raise ChargenStepUnsupported(
+        f"chargen input_type {input_type!r} is not in the v1 path "
+        "(stat_arrange / roll_the_bones / fate_* not driven yet) — failing loud "
+        "instead of faking a pick"
+    )
 
 
 def _chargen_situation(payload: dict) -> str:

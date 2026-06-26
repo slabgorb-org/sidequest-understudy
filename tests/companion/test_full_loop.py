@@ -1,21 +1,32 @@
-"""WIRING (159-5): the companion plays a whole scripted session end to end —
-Plan C Task 11.
+"""WIRING (159-5, extended): the companion plays a whole scripted session end to
+end — Plan C Task 11.
 
 CLAUDE.md: 'Every Test Suite Needs a Wiring Test.' This drives the REAL
-run_companion through a complete session shape — connect -> chargen scene -> play
-a turn -> a dice request -> session end — with a fake brain and a scripted fake
+run_companion through a complete session shape — connect -> the FULL chargen FSM
+(scene -> continue -> story -> portrait -> confirmation -> complete) -> play a
+turn -> a dice request -> session end — with a fake brain and a scripted fake
 server, proving the whole pipeline is wired together, not merely unit-correct in
 isolation. It is the offline half of the contract-drift tripwire (the online half
 is a gated real-server smoke, out of v1 scope).
+
+The chargen leg models the REAL server contract (the GM playtest 2026-06-26 and
+the design note docs/superpowers/specs/2026-06-26-companion-chargen-driver-decision.md):
+the server keeps ``phase="scene"`` for every scene-stage step and differentiates
+the step in ``input_type`` (choice/continue/story/pick_portrait), then emits
+``phase="confirmation"`` to commit and ``phase="complete"`` when the PC is built.
+A companion that only ever answers ``phase="scene"`` (the pre-fix bug) never
+finalises a character. This fixture would catch that regression.
 """
 
 from __future__ import annotations
 
 import random
 
+import pytest
+
 from companion.intent import CompanionIntent, IntentKind
 from companion.manifest import CompanionDef
-from companion.run import run_companion
+from companion.run import ChargenStepUnsupported, run_companion
 from seat_core.core import FakeStructuredModel
 from seat_core.persona.axis import Role, SeatAxes
 
@@ -52,16 +63,56 @@ def _donut() -> CompanionDef:
     )
 
 
+def _chargen(payload: dict) -> dict:
+    return {"type": "CHARACTER_CREATION", "payload": payload}
+
+
+def _by_phase(sent: list[dict], phase: str) -> dict:
+    return next(
+        f for f in sent if f["type"] == "CHARACTER_CREATION" and f["payload"].get("phase") == phase
+    )
+
+
 async def test_companion_plays_a_full_scripted_session():
     incoming = [
         {"type": "SESSION_EVENT", "payload": {"event": "connected"}, "player_id": "rex-pid"},
-        {"type": "CHARACTER_CREATION", "payload": {
-            "phase": "scene", "prompt": "What is your origin?",
-            "choices": [{"label": "Show cat"}, {"label": "Alley cat"}]}},
+        # --- the full chargen FSM, the way the real server drives it ----------
+        _chargen(
+            {
+                "phase": "scene",
+                "input_type": "choice",
+                "prompt": "Pick your calling.",
+                "choices": [{"label": "Warrior"}, {"label": "Expert"}, {"label": "Mage"}],
+            }
+        ),
+        _chargen(
+            {
+                "phase": "scene",
+                "input_type": "continue",
+                "prompt": "Standard kit.",
+                "choices": [],
+                "allows_freeform": False,
+            }
+        ),
+        _chargen(
+            {
+                "phase": "scene",
+                "input_type": "story",
+                "prompt": "Who are you?",
+                "choices": [],
+                "pronouns_required": True,
+            }
+        ),
+        _chargen({"phase": "scene", "input_type": "pick_portrait", "portraits_available": True}),
+        _chargen({"phase": "confirmation", "character_preview": {"name": "Princess Donut"}}),
+        _chargen({"phase": "complete"}),
+        # --- play -------------------------------------------------------------
         {"type": "SESSION_EVENT", "payload": {"event": "ready"}, "player_id": "rex-pid"},
         {"type": "NARRATION", "payload": {"text": "The warren reeks of goblin."}},
-        {"type": "TURN_STATUS", "payload": {"entries": [
-            {"player_id": "rex-pid", "status": "pending"}]}},
+        {
+            "type": "TURN_STATUS",
+            "payload": {"entries": [{"player_id": "rex-pid", "status": "pending"}]},
+        },
         {"type": "DICE_REQUEST", "payload": {"roller": "Princess Donut", "die_system": "d20"}},
         {"type": "NARRATION_END", "payload": {"round": 1}},
         {"type": "SESSION_EVENT", "payload": {"event": "ended"}},
@@ -69,7 +120,8 @@ async def test_companion_plays_a_full_scripted_session():
     server = FakeServer(incoming)
     brain = FakeStructuredModel(
         [
-            CompanionIntent(kind=IntentKind.ACT, text="Show cat, OBVIOUSLY."),  # chargen
+            CompanionIntent(kind=IntentKind.ACT, text="Expert, OBVIOUSLY."),  # class scene
+            CompanionIntent(kind=IntentKind.ACT, text="A cat of intimidating lineage."),  # story
             CompanionIntent(kind=IntentKind.ACT, text="I sniff and deign to lead."),  # turn
             CompanionIntent(kind=IntentKind.ROLL),  # dice request
         ],
@@ -89,19 +141,37 @@ async def test_companion_plays_a_full_scripted_session():
     # human's SessionRoom), NOT the WS endpoint URL (Reviewer 159-5 — the HIGH bug)
     assert server.sent[0]["payload"]["game_slug"] == defn.game_slug
     assert server.sent[0]["payload"]["game_slug"] != defn.session_url
-    # chargen answered (the brain's actual choice, not a fallback), then a turn,
-    # then the dice request answered
-    assert "CHARACTER_CREATION" in types
-    cc = next(f for f in server.sent if f["type"] == "CHARACTER_CREATION")
-    # 159-7: the choice must be a SERVER-RESOLVABLE selector for the picked option
-    # ("Show cat") — a 1-based index or the exact label — never the raw prose, which
-    # the server cannot resolve on a select scene (chargen stalls). The scripted
-    # fixture previously asserted the prose verbatim, enshrining the bug.
-    choice = cc["payload"]["choice"]
-    assert choice != "Show cat, OBVIOUSLY.", "must not forward raw prose as the choice"
-    assert choice == "1" or str(choice).casefold() == "show cat", (
-        f"chargen choice {choice!r} must be a server-resolvable selector for 'Show cat'"
+
+    # --- chargen drove the WHOLE FSM, not just the opening scene -------------
+    # 159-7: a select scene resolves to a server-resolvable selector for "Expert"
+    # (1-based index or exact label) — never the raw prose.
+    scene_resp = next(
+        f
+        for f in server.sent
+        if f["type"] == "CHARACTER_CREATION"
+        and f["payload"].get("phase") == "scene"
+        and "choice" in f["payload"]
     )
+    choice = scene_resp["payload"]["choice"]
+    assert choice != "Expert, OBVIOUSLY.", "must not forward raw prose as the choice"
+    assert choice == "2" or str(choice).casefold() == "expert", (
+        f"chargen choice {choice!r} must be a server-resolvable selector for 'Expert'"
+    )
+    # display-only scene acknowledged
+    _by_phase(server.sent, "continue")
+    # identity scene answered with the structured story_confirm fields
+    story = _by_phase(server.sent, "story_confirm")
+    assert story["payload"].get("pronouns"), "story_confirm must carry pronouns"
+    assert story["payload"].get("background"), "story_confirm must carry a background"
+    assert "description" in story["payload"], "story_confirm must carry a description"
+    # portrait step skipped (no daemon dependency for a bot)
+    portrait = _by_phase(server.sent, "portrait_confirm")
+    assert portrait["payload"]["selected_portrait_ref"] is None
+    # and the character is COMMITTED — the step that was unreachable before
+    commit = _by_phase(server.sent, "confirmation")
+    assert commit["payload"]["choice"] == "1"
+
+    # --- play leg unchanged --------------------------------------------------
     assert "PLAYER_ACTION" in types
     action = next(f for f in server.sent if f["type"] == "PLAYER_ACTION")
     assert action["payload"]["action"] == "I sniff and deign to lead."
@@ -109,3 +179,21 @@ async def test_companion_plays_a_full_scripted_session():
     assert "DICE_THROW" in types
     throw = next(f for f in server.sent if f["type"] == "DICE_THROW")
     assert len(throw["payload"]["faces"]) == 1 and 1 <= throw["payload"]["faces"][0] <= 20
+
+
+async def test_unsupported_chargen_step_fails_loud():
+    """80%-path boundary (Keith 2026-06-26): ruleset-specific chargen steps
+    (stat_arrange / roll_the_bones / fate_*) are NOT silently faked — the
+    companion fails loud so an unsupported genre is a visible finding, not a
+    garbage submission (SOUL: No Silent Fallbacks; design note §5)."""
+    incoming = [
+        {"type": "SESSION_EVENT", "payload": {"event": "connected"}, "player_id": "rex-pid"},
+        _chargen(
+            {"phase": "scene", "input_type": "stat_arrange", "ability_names": ["STR", "DEX", "CON"]}
+        ),
+    ]
+    server = FakeServer(incoming)
+    brain = FakeStructuredModel([], default=CompanionIntent(kind=IntentKind.YIELD))
+
+    with pytest.raises(ChargenStepUnsupported):
+        await run_companion(_donut(), server, brain, rng=random.Random(0))
