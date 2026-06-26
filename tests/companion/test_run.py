@@ -134,7 +134,15 @@ async def test_chargen_scene_answered_in_persona():
     await run_companion(_defn(), transport, brain, rng=random.Random(0))
     cc = next((f for f in transport.sent if f["type"] == "CHARACTER_CREATION"), None)
     assert cc is not None, "companion must answer the chargen scene"
-    assert cc["payload"]["choice"] == "Show cat, OBVIOUSLY."
+    # 159-7: the choice must be a SERVER-RESOLVABLE selector for the picked option
+    # ("Show cat") — a 1-based index or the exact label — never the raw prose
+    # paragraph, which the server cannot resolve on a select scene (it falls to
+    # apply_freeform and chargen stalls). See test_chargen_choice.py.
+    choice = cc["payload"]["choice"]
+    assert choice != "Show cat, OBVIOUSLY.", "must not forward raw prose as the choice"
+    assert choice == "1" or str(choice).casefold() == "show cat", (
+        f"choice {choice!r} must be a server-resolvable selector for the only option"
+    )
 
 
 async def test_chargen_falls_back_to_first_option_when_brain_yields():
@@ -151,7 +159,10 @@ async def test_chargen_falls_back_to_first_option_when_brain_yields():
     await run_companion(_defn(), transport, _brain(), rng=random.Random(0))  # default = YIELD
     cc = next((f for f in transport.sent if f["type"] == "CHARACTER_CREATION"), None)
     assert cc is not None, "companion must still answer chargen when it yields"
-    assert cc["payload"]["choice"] == "0"
+    # 159-7: the fallback must be a server-resolvable selector for the FIRST option.
+    # The server resolves an index as max(0, n-1), so both "0" and "1" land on the
+    # first option — accept either rather than pinning the 0-based literal.
+    assert cc["payload"]["choice"] in ("0", "1")
 
 
 async def test_not_my_turn_sends_no_action():
