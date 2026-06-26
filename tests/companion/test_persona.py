@@ -19,6 +19,7 @@ axes: {narrative_vs_mechanical: 0.4, verbosity: medium, decisiveness: high, read
 companion_of: alice@home
 genre: caverns_and_claudes
 world: beneath_sunden
+game_slug: caverns-night-1
 session_url: ws://x/ws
 """
 

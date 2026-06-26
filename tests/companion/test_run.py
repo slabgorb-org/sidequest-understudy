@@ -55,6 +55,7 @@ def _defn(decide_timeout_s: float = 30.0) -> CompanionDef:
         companion_of="alice@home",
         genre="g",
         world="w",
+        game_slug="game-1",  # the human's room slug — distinct from the WS endpoint
         session_url="ws://x/ws",
         decide_timeout_s=decide_timeout_s,
     )
@@ -100,6 +101,9 @@ async def test_plays_turn_then_throws_then_exits():
     assert action["payload"]["action"] == "I deign to scout ahead."
     assert action["player_id"] == "rex-pid"
     assert "DICE_THROW" in sent_types
+    # the d20 throw carries exactly one fair face in range (Reviewer 159-5)
+    throw = next(f for f in transport.sent if f["type"] == "DICE_THROW")
+    assert len(throw["payload"]["faces"]) == 1 and 1 <= throw["payload"]["faces"][0] <= 20
 
 
 async def test_exits_cleanly_on_closed_transport():
@@ -131,6 +135,23 @@ async def test_chargen_scene_answered_in_persona():
     cc = next((f for f in transport.sent if f["type"] == "CHARACTER_CREATION"), None)
     assert cc is not None, "companion must answer the chargen scene"
     assert cc["payload"]["choice"] == "Show cat, OBVIOUSLY."
+
+
+async def test_chargen_falls_back_to_first_option_when_brain_yields():
+    # The 'never stall chargen' degradation: when the brain yields (or returns any
+    # non-ACT decision), the choice maps to "0" (first option) so chargen always
+    # completes rather than hanging the table. (Reviewer 159-5 — was untested.)
+    incoming = [
+        _CONNECTED,
+        {"type": "CHARACTER_CREATION", "payload": {
+            "phase": "scene", "prompt": "Origin?", "choices": [{"label": "Show cat"}]}},
+        _ENDED,
+    ]
+    transport = FakeTransport(incoming)
+    await run_companion(_defn(), transport, _brain(), rng=random.Random(0))  # default = YIELD
+    cc = next((f for f in transport.sent if f["type"] == "CHARACTER_CREATION"), None)
+    assert cc is not None, "companion must still answer chargen when it yields"
+    assert cc["payload"]["choice"] == "0"
 
 
 async def test_not_my_turn_sends_no_action():

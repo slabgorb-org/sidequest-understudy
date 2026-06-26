@@ -32,6 +32,7 @@ def _defn() -> CompanionDef:
         companion_of="alice@home",
         genre="g",
         world="w",
+        game_slug="rumpus-room",  # the human's room slug — distinct from session_url
         session_url="ws://x/ws",
     )
 
@@ -43,6 +44,17 @@ def test_connect_frame_carries_companion_metadata():
     assert f["payload"]["player_name"] == "Donut"
     assert f["payload"]["companion_of"] == "alice@home"
     assert f["payload"]["relationship"] == "pet"
+
+
+def test_connect_frame_game_slug_is_room_slug_not_url():
+    # The HIGH 159-5 bug (Reviewer): game_slug must be the human's ROOM SLUG so the
+    # companion lands in the SAME SessionRoom — NOT the WS endpoint URL. The real
+    # client sends game_slug=<slug> (sidequest-ui App.tsx) and the /ws route carries
+    # no path slug, so a URL here would fail room lookup on every live connect.
+    defn = _defn()
+    f = connect_frame(defn)
+    assert f["payload"]["game_slug"] == defn.game_slug
+    assert f["payload"]["game_slug"] != defn.session_url
 
 
 def test_player_action_frame_shape():

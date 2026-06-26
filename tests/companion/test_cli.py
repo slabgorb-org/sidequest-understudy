@@ -26,6 +26,7 @@ axes: {narrative_vs_mechanical: 0.4, verbosity: medium, decisiveness: high, read
 companion_of: alice@home
 genre: g
 world: w
+game_slug: g-slug
 session_url: ws://x/ws
 """
 

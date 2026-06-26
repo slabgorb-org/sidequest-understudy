@@ -27,6 +27,7 @@ axes:
 companion_of: alice@home
 genre: caverns_and_claudes
 world: beneath_sunden
+game_slug: caverns-night-1
 session_url: ws://player2.local:8765/ws
 """
 
@@ -38,6 +39,7 @@ def test_load_valid(tmp_path: Path):
     assert isinstance(d, CompanionDef)
     assert d.role is Role.PET
     assert d.companion_of == "alice@home"
+    assert d.game_slug == "caverns-night-1"  # the human's room to join
     assert d.model == "anthropic/claude-haiku-4-5-20251001"  # default
     assert d.decide_timeout_s == 30.0  # default — bounds the decide step
 
@@ -57,6 +59,16 @@ def test_unknown_role_fails_loud(tmp_path: Path):
 def test_missing_field_fails_loud(tmp_path: Path):
     p = tmp_path / "bad.yaml"
     p.write_text(_VALID.replace("companion_of: alice@home\n", ""))
+    with pytest.raises(ManifestError):
+        load_companion(p)
+
+
+def test_missing_game_slug_fails_loud(tmp_path: Path):
+    # game_slug (the human's room to join) is REQUIRED — a companion that doesn't
+    # know which room to enter cannot join the human's session (epic 159's core
+    # promise). Absent → fail loud at load, before any socket opens. (Reviewer 159-5.)
+    p = tmp_path / "bad.yaml"
+    p.write_text(_VALID.replace("game_slug: caverns-night-1\n", ""))
     with pytest.raises(ManifestError):
         load_companion(p)
 

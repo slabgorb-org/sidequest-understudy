@@ -47,6 +47,7 @@ def _donut() -> CompanionDef:
         companion_of="alice@home",
         genre="caverns_and_claudes",
         world="beneath_sunden",
+        game_slug="caverns-night-1",  # the human's room slug — NOT the WS endpoint
         session_url="ws://player2.local:8765/ws",
     )
 
@@ -75,7 +76,8 @@ async def test_companion_plays_a_full_scripted_session():
         default=CompanionIntent(kind=IntentKind.YIELD),
     )
 
-    await run_companion(_donut(), server, brain, rng=random.Random(0))
+    defn = _donut()
+    await run_companion(defn, server, brain, rng=random.Random(0))
 
     types = [f["type"] for f in server.sent]
     # connect first, carrying the bond metadata the server's bond registry reads
@@ -83,8 +85,15 @@ async def test_companion_plays_a_full_scripted_session():
     assert server.sent[0]["payload"]["event"] == "connect"
     assert server.sent[0]["payload"]["companion_of"] == "alice@home"
     assert server.sent[0]["payload"]["relationship"] == "pet"
-    # chargen answered, then a turn played, then the dice request answered
+    # the connect frame carries the ROOM SLUG (so the companion lands in the
+    # human's SessionRoom), NOT the WS endpoint URL (Reviewer 159-5 — the HIGH bug)
+    assert server.sent[0]["payload"]["game_slug"] == defn.game_slug
+    assert server.sent[0]["payload"]["game_slug"] != defn.session_url
+    # chargen answered (the brain's actual choice, not a fallback), then a turn,
+    # then the dice request answered
     assert "CHARACTER_CREATION" in types
+    cc = next(f for f in server.sent if f["type"] == "CHARACTER_CREATION")
+    assert cc["payload"]["choice"] == "Show cat, OBVIOUSLY."
     assert "PLAYER_ACTION" in types
     action = next(f for f in server.sent if f["type"] == "PLAYER_ACTION")
     assert action["payload"]["action"] == "I sniff and deign to lead."
