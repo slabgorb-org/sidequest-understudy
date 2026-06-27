@@ -80,7 +80,7 @@ def _select_scene(choices: list[dict]) -> dict:
             "phase": "scene",
             "prompt": "Pick the one you'll die as.",
             "choices": choices,
-            "input_type": "select",
+            "input_type": "choice",
             "allows_freeform": False,
         },
     }
@@ -237,7 +237,9 @@ async def test_ambiguous_substring_pick_falls_back_and_logs(caplog):
     # >1 hit → None → loud first-option fallback (not a silently-wrong specific pick).
     with caplog.at_level(logging.WARNING, logger="companion.run"):
         choice = await _run_select("Warrior or Expert — hard call, honestly.")
-    assert _server_resolves(choice, _CLASSES) == 0, "ambiguous pick must fall back to the first option"
+    assert _server_resolves(choice, _CLASSES) == 0, (
+        "ambiguous pick must fall back to the first option"
+    )
     assert any(
         "unmappable" in r.getMessage() for r in caplog.records if r.name == "companion.run"
     ), "an ambiguous (multi-label) pick must log loudly"
@@ -253,7 +255,7 @@ def _select_freeform_scene(choices: list[dict]) -> dict:
             "phase": "scene",
             "prompt": "Pick a path — or write your own.",
             "choices": choices,
-            "input_type": "select",
+            "input_type": "choice",
             "allows_freeform": True,
         },
     }
@@ -270,7 +272,9 @@ async def test_select_freeform_hybrid_unmappable_pick_is_written_in(caplog):
     assert choice == "Wild card — I forge my own path.", (
         "a select+allows_freeform scene must send an unmappable pick verbatim as a write-in"
     )
-    assert _server_resolves(choice, _CLASSES) is None, "the write-in is not a select index (server applies freeform)"
+    assert _server_resolves(choice, _CLASSES) is None, (
+        "the write-in is not a select index (server applies freeform)"
+    )
     assert not any(
         r.name == "companion.run" and r.levelno >= logging.WARNING for r in caplog.records
     ), "a legitimate write-in on an allows_freeform scene must be silent (no fallback warning)"
