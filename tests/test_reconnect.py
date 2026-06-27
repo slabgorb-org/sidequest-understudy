@@ -2,12 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from understudy.manifest import ManifestError
+from understudy.manifest import ManifestError, RunManifest, SeatSpec
 from understudy.orchestrate.reconnect import (
     reconnect_context_kwargs,
     seat_state_path,
     validate_reconnect_dir,
 )
+from understudy.orchestrate.run import run_table
 
 
 def test_seat_state_path_uses_state_subdir():
@@ -48,10 +49,6 @@ def test_validate_passes_when_all_seat_files_present(tmp_path):
     (tmp_path / "state").mkdir()
     (tmp_path / "state" / "seat-1.json").write_text("{}")
     validate_reconnect_dir(tmp_path, [1])  # no raise
-
-
-from understudy.manifest import RunManifest, SeatSpec
-from understudy.orchestrate.run import run_table
 
 
 async def test_run_table_reconnect_missing_seat_raises_before_launch(tmp_path):
