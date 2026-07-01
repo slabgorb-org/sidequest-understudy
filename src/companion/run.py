@@ -45,6 +45,14 @@ class ChargenStepUnsupported(RuntimeError):
     garbage submission (SOUL: No Silent Fallbacks)."""
 
 
+class ConnectRejected(RuntimeError):
+    """The server sent an ``ERROR`` frame — most often a rejected connect (Story
+    160-4: a SOLO-slot conflict, ``{"type": "ERROR", "payload": {"message": ...}}``).
+    Raised loud carrying the server's message so the run surfaces the rejection
+    and exits non-zero, instead of looping back to ``recv()`` and hanging forever
+    on a socket the server is holding open (SOUL: No Silent Fallbacks)."""
+
+
 async def run_companion(
     defn: CompanionDef,
     transport: Transport,
@@ -66,6 +74,14 @@ async def run_companion(
 
         if kind == "SESSION_EVENT" and payload.get("event") == "ended":
             return
+
+        if kind == "ERROR":
+            # No Silent Fallbacks: an ERROR frame (e.g. a rejected connect) matches
+            # no play branch. Surface it loudly and stop — never loop back to
+            # recv() on a socket the server is holding open (the 160-4 hang).
+            message = payload.get("message", "")
+            logger.error("companion aborted — server sent ERROR: %s", message)
+            raise ConnectRejected(f"server rejected the companion: {message}")
 
         if kind == "CHARACTER_CREATION":
             out = await _chargen_response(brain, system, mirror, defn, payload)
