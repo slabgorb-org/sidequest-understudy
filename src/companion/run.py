@@ -46,11 +46,13 @@ class ChargenStepUnsupported(RuntimeError):
 
 
 class ConnectRejected(RuntimeError):
-    """The server sent an ``ERROR`` frame — most often a rejected connect (Story
-    160-4: a SOLO-slot conflict, ``{"type": "ERROR", "payload": {"message": ...}}``).
-    Raised loud carrying the server's message so the run surfaces the rejection
-    and exits non-zero, instead of looping back to ``recv()`` and hanging forever
-    on a socket the server is holding open (SOUL: No Silent Fallbacks)."""
+    """The server rejected the companion's connect with an ``ERROR`` frame BEFORE
+    the seat entered play (Story 160-4: a SOLO-slot conflict,
+    ``{"type": "ERROR", "payload": {"message": ...}}``). Raised loud carrying the
+    server's message so the run surfaces the rejection and exits non-zero, instead
+    of looping back to ``recv()`` and hanging forever on a socket the server is
+    holding open (SOUL: No Silent Fallbacks). In-session ERROR frames (after the
+    connect is accepted) are recoverable and are logged-and-skipped, not raised."""
 
 
 async def run_companion(
@@ -64,6 +66,11 @@ async def run_companion(
     mirror = StateMirror()
     await transport.send(connect_frame(defn))
 
+    # ``connected`` flips true on the first non-ERROR server frame — the signal that
+    # the connect was accepted. An ERROR before it is a connect rejection (fatal, the
+    # 160-4 case); an ERROR after it is a recoverable in-session hiccup.
+    connected = False
+
     while True:
         frame = await transport.recv()
         if frame is None:
@@ -76,12 +83,25 @@ async def run_companion(
             return
 
         if kind == "ERROR":
-            # No Silent Fallbacks: an ERROR frame (e.g. a rejected connect) matches
-            # no play branch. Surface it loudly and stop — never loop back to
-            # recv() on a socket the server is holding open (the 160-4 hang).
             message = payload.get("message", "")
-            logger.error("companion aborted — server sent ERROR: %s", message)
-            raise ConnectRejected(f"server rejected the companion: {message}")
+            if not connected:
+                # Connect-phase rejection (Story 160-4: e.g. a SOLO-slot conflict).
+                # The companion never entered play — fail loud and exit non-zero,
+                # never loop back to recv() on a socket the server holds open (the
+                # 160-4 hang; No Silent Fallbacks).
+                logger.error("companion connect rejected — server sent ERROR: %s", message)
+                raise ConnectRejected(f"server rejected the companion: {message}")
+            # In-session ERROR (session_unbound resend-connect, empty-action bounce,
+            # dice-retry/resync): the server keeps the session open and the human UI
+            # recovers from these (sidequest-ui App.tsx FATAL_ERROR_CODES). Log and
+            # keep playing — a recoverable hiccup must not crash the whole run and
+            # lose the dogfood (review 160-4).
+            logger.warning("companion received a recoverable in-session ERROR: %s", message)
+            continue
+
+        # Any non-ERROR server frame means the connect was accepted and the server
+        # is now driving this seat — in session from here on.
+        connected = True
 
         if kind == "CHARACTER_CREATION":
             out = await _chargen_response(brain, system, mirror, defn, payload)

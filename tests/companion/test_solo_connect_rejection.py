@@ -142,3 +142,46 @@ async def test_error_rejection_does_not_loop_back_to_recv_and_hang() -> None:
         "run_companion must fail loud on the ERROR frame, not loop back to recv() "
         f"(the hang); recv was called {transport.recv_calls} times"
     )
+
+
+class _InSessionRecoverableErrorTransport:
+    """Models a LIVE session: the server accepts the connect (a
+    ``CHARACTER_CREATION`` phase=complete frame → the seat is in play), then emits
+    a RECOVERABLE in-session ERROR (empty-action bounce / session_unbound /
+    dice-retry — the server keeps the session open), then closes. The loop must
+    log-and-continue the ERROR, never crash on it."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+        self._incoming: list[dict | None] = [
+            {"type": "CHARACTER_CREATION", "payload": {"phase": "complete"}},
+            {"type": "ERROR", "payload": {"message": "Player action is empty after sanitization"}},
+            None,
+        ]
+
+    async def send(self, frame: dict) -> None:
+        self.sent.append(frame)
+
+    async def recv(self) -> dict | None:
+        return self._incoming.pop(0) if self._incoming else None
+
+
+async def test_recoverable_in_session_error_does_not_crash(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC4 (review 160-4 rework): once the connect is accepted, a recoverable ERROR
+    frame (the server keeps the session open and a human client recovers from it)
+    must NOT crash the run — the loop logs it and keeps playing. The pre-rework
+    blanket ``if kind == "ERROR": raise`` killed the whole dogfood on the first
+    such hiccup; that is exactly what 160-4 exists to prevent."""
+    transport = _InSessionRecoverableErrorTransport()
+    with caplog.at_level(logging.WARNING, logger="companion.run"):
+        # Returns cleanly on transport close — does NOT raise ConnectRejected.
+        await asyncio.wait_for(
+            run_companion(_defn(), transport, _brain(), rng=random.Random(0)),
+            timeout=2.0,
+        )
+
+    assert any(
+        "recoverable in-session ERROR" in r.getMessage() for r in caplog.records
+    ), "a recoverable in-session ERROR must be logged so it is visible in the run output"
