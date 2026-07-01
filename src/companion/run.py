@@ -31,6 +31,12 @@ logger = logging.getLogger(__name__)
 
 _PROMPT_KINDS = frozenset({"DICE_REQUEST", "CONFRONTATION", "FATE_DEFEND_REQUEST"})
 
+# ERROR-frame ``code`` values that mean the session is unrecoverable — mirrors
+# sidequest-ui App.tsx ``FATAL_ERROR_CODES``. An in-session ERROR whose code is
+# here fails loud; ``session_unbound`` / ``reconnect_required`` recover by
+# resending connect; anything else is a transient per-message rejection.
+_FATAL_ERROR_CODES = frozenset({"save_schema_invalid"})
+
 # Scene steps whose answer is a creative pick the brain must make. ``None`` covers
 # plain scenes that omit input_type. Steps not handled explicitly in
 # ``_chargen_response`` (stat_arrange / roll_the_bones / fate_*) fail loud — the
@@ -51,8 +57,15 @@ class ConnectRejected(RuntimeError):
     ``{"type": "ERROR", "payload": {"message": ...}}``). Raised loud carrying the
     server's message so the run surfaces the rejection and exits non-zero, instead
     of looping back to ``recv()`` and hanging forever on a socket the server is
-    holding open (SOUL: No Silent Fallbacks). In-session ERROR frames (after the
-    connect is accepted) are recoverable and are logged-and-skipped, not raised."""
+    holding open (SOUL: No Silent Fallbacks)."""
+
+
+class FatalServerError(RuntimeError):
+    """The server sent an in-session ``ERROR`` whose ``code`` is in
+    ``_FATAL_ERROR_CODES`` (e.g. ``save_schema_invalid``) AFTER the seat was in
+    play — an unrecoverable mid-session failure. Raised loud (exits non-zero)
+    rather than looping on a dead session, mirroring the UI's fatal-panel escape
+    (SOUL: No Silent Fallbacks)."""
 
 
 async def run_companion(
@@ -91,12 +104,34 @@ async def run_companion(
                 # 160-4 hang; No Silent Fallbacks).
                 logger.error("companion connect rejected — server sent ERROR: %s", message)
                 raise ConnectRejected(f"server rejected the companion: {message}")
-            # In-session ERROR (session_unbound resend-connect, empty-action bounce,
-            # dice-retry/resync): the server keeps the session open and the human UI
-            # recovers from these (sidequest-ui App.tsx FATAL_ERROR_CODES). Log and
-            # keep playing — a recoverable hiccup must not crash the whole run and
-            # lose the dogfood (review 160-4).
-            logger.warning("companion received a recoverable in-session ERROR: %s", message)
+            # In-session ERROR: classify by ``code`` exactly as the human UI does
+            # (sidequest-ui App.tsx), so a hiccup neither crashes the run nor
+            # silently hangs it (review 160-4 rework).
+            code = payload.get("code")
+            if payload.get("reconnect_required") or code == "session_unbound":
+                # The seat is unbound (server restart, ``uvicorn --reload`` zombie
+                # bind, or a reload race). The server will NOT re-drive an unbound
+                # seat, so a bare ``continue`` would block recv() forever — recover
+                # by RE-FIRING the connect handshake, exactly as the UI does
+                # (App.tsx:1428 / :1490), then keep playing.
+                logger.warning(
+                    "companion re-sending connect after unbound-session ERROR (code=%s): %s",
+                    code,
+                    message,
+                )
+                await transport.send(connect_frame(defn))
+                continue
+            if code in _FATAL_ERROR_CODES:
+                # A typed unrecoverable failure (e.g. save_schema_invalid) — fail
+                # loud and exit non-zero (No Silent Fallbacks), mirroring the UI's
+                # fatal-panel escape. Never loop on an unrecoverable session.
+                logger.error("companion aborted — fatal server ERROR (code=%s): %s", code, message)
+                raise FatalServerError(f"server sent a fatal ERROR (code={code}): {message}")
+            # Genuinely transient per-message rejection (no fatal code — e.g. an
+            # empty-action bounce or dice-retry): the session is fine, one input
+            # bounced. Log and keep playing; the next TURN_STATUS/prompt drives the
+            # retry.
+            logger.warning("companion received a transient in-session ERROR: %s", message)
             continue
 
         # Any non-ERROR server frame means the connect was accepted and the server

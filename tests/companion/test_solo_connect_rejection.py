@@ -183,5 +183,99 @@ async def test_recoverable_in_session_error_does_not_crash(
         )
 
     assert any(
-        "recoverable in-session ERROR" in r.getMessage() for r in caplog.records
-    ), "a recoverable in-session ERROR must be logged so it is visible in the run output"
+        "transient in-session ERROR" in r.getMessage() for r in caplog.records
+    ), "a transient in-session ERROR must be logged so it is visible in the run output"
+
+
+def _connect_frames(sent: list[dict]) -> list[dict]:
+    return [
+        f
+        for f in sent
+        if f.get("type") == "SESSION_EVENT" and (f.get("payload") or {}).get("event") == "connect"
+    ]
+
+
+class _SessionUnboundThenCloseTransport:
+    """Server accepts the connect (CHARACTER_CREATION complete), then rejects an
+    action with ``code="session_unbound"`` (the seat is unbound), then closes.
+    The loop must RE-SEND the connect handshake (recover), never bare-continue
+    into a silent recv() hang."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+        self._incoming: list[dict | None] = [
+            {"type": "CHARACTER_CREATION", "payload": {"phase": "complete"}},
+            {
+                "type": "ERROR",
+                "payload": {
+                    "message": "Cannot process PLAYER_ACTION: not connected",
+                    "code": "session_unbound",
+                },
+            },
+            None,
+        ]
+
+    async def send(self, frame: dict) -> None:
+        self.sent.append(frame)
+
+    async def recv(self) -> dict | None:
+        return self._incoming.pop(0) if self._incoming else None
+
+
+async def test_session_unbound_resends_connect_and_does_not_hang() -> None:
+    """AC4 (review 160-4 rework): a mid-session ``code="session_unbound"`` is NOT
+    continue-recoverable — the server will not re-drive an unbound seat, so a bare
+    ``continue`` blocks recv() forever (the relocated hang). The loop must re-fire
+    the connect handshake exactly as the UI does (App.tsx:1490). Proven by a SECOND
+    connect frame in ``transport.sent`` — and the run returns (does not raise)."""
+    transport = _SessionUnboundThenCloseTransport()
+    await asyncio.wait_for(
+        run_companion(_defn(), transport, _brain(), rng=random.Random(0)),
+        timeout=2.0,
+    )
+    assert len(_connect_frames(transport.sent)) == 2, (
+        "run_companion must re-send SESSION_EVENT{connect} on session_unbound (the "
+        f"UI's recovery), not bare-continue into a hang; sent={transport.sent}"
+    )
+
+
+class _FatalCodeThenCloseTransport:
+    """Server accepts the connect, then sends a FATAL in-session ERROR
+    (``code="save_schema_invalid"``), then closes. The loop must fail loud."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+        self._incoming: list[dict | None] = [
+            {"type": "CHARACTER_CREATION", "payload": {"phase": "complete"}},
+            {
+                "type": "ERROR",
+                "payload": {"message": "save is unreadable", "code": "save_schema_invalid"},
+            },
+            None,
+        ]
+
+    async def send(self, frame: dict) -> None:
+        self.sent.append(frame)
+
+    async def recv(self) -> dict | None:
+        return self._incoming.pop(0) if self._incoming else None
+
+
+async def test_fatal_code_in_session_raises_loud() -> None:
+    """AC4 (review 160-4 rework): a mid-session ERROR with a code in
+    FATAL_ERROR_CODES (save_schema_invalid) is unrecoverable — fail loud and exit
+    non-zero (No Silent Fallbacks), never loop on a dead session. Must NOT be
+    swallowed by the transient log+continue path."""
+    transport = _FatalCodeThenCloseTransport()
+    with pytest.raises(RuntimeError) as excinfo:
+        await asyncio.wait_for(
+            run_companion(_defn(), transport, _brain(), rng=random.Random(0)),
+            timeout=2.0,
+        )
+    assert "save_schema_invalid" in str(excinfo.value), (
+        f"the fatal failure must name the code so the run output is diagnostic; got {excinfo.value!r}"
+    )
+    # It must fail loud ON the fatal frame, not resend/continue.
+    assert len(_connect_frames(transport.sent)) == 1, (
+        f"a fatal code must not trigger a connect resend; sent={transport.sent}"
+    )
