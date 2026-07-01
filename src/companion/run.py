@@ -150,6 +150,7 @@ async def run_companion(
                 system,
                 build_turn_context(mirror, _prompt_situation(kind, payload)),
                 defn.decide_timeout_s,
+                defn=defn,
             )
             out = actuate(intent, mirror, rng=rng)
             if out is not None:
@@ -162,6 +163,7 @@ async def run_companion(
                 system,
                 build_turn_context(mirror, "It is your turn. What do you do?"),
                 defn.decide_timeout_s,
+                defn=defn,
             )
             out = actuate(intent, mirror, rng=rng)
             if out is not None:
@@ -205,6 +207,7 @@ async def _chargen_response(
             system,
             build_turn_context(mirror, _chargen_situation(payload)),
             defn.decide_timeout_s,
+            defn=defn,
         )
         # The cat describes herself; pronouns default neutral (the def carries no
         # pronoun field — the voice, not the sheet, is load-bearing in play).
@@ -220,6 +223,7 @@ async def _chargen_response(
             system,
             build_turn_context(mirror, _chargen_situation(payload)),
             defn.decide_timeout_s,
+            defn=defn,
         )
         return chargen_choice_frame(_chargen_choice(intent, payload))
 

@@ -88,7 +88,9 @@ class _FakeProc:
         return self._stdout, self._stderr
 
 
-def _patch_subprocess(monkeypatch, *, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""):
+def _patch_subprocess(
+    monkeypatch, *, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""
+):
     async def fake_exec(*_args, **_kwargs):
         return _FakeProc(returncode, stdout, stderr)
 
@@ -163,7 +165,9 @@ async def test_anthropic_reports_model_on_result():
             "type": "message",
             "role": "assistant",
             "model": "claude-haiku-4-5-20251001",
-            "content": [{"type": "tool_use", "id": "tu_1", "name": "submit", "input": {"kind": "b"}}],
+            "content": [
+                {"type": "tool_use", "id": "tu_1", "name": "submit", "input": {"kind": "b"}}
+            ],
             "stop_reason": "tool_use",
             "stop_sequence": None,
             "usage": {"input_tokens": 10, "output_tokens": 5},
@@ -188,7 +192,9 @@ async def test_ollama_reports_model_and_zero_cost():
         "prompt_eval_count": 10,
         "eval_count": 3,
     }
-    model = OllamaModel("qwen3:8b", Ping, client=httpx.AsyncClient(transport=_ollama_transport(reply)))
+    model = OllamaModel(
+        "qwen3:8b", Ping, client=httpx.AsyncClient(transport=_ollama_transport(reply))
+    )
     r = await model.decide("sys", [Message(role="user", content="screen")])
     assert r.value.kind == "a"
     assert r.model == "qwen3:8b"

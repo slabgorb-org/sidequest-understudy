@@ -40,8 +40,12 @@ class OllamaModel:
         except (KeyError, TypeError) as exc:
             raise ModelError(f"ollama response missing message content: {data!r:.300}") from exc
         value = parse_structured(content, self._output_model)
+        # model is surfaced for the companion telemetry ledger (161-2); cost is a
+        # real 0.0 — the local lane is free, not unknown.
         return DecideResult(
             value=value,
             input_tokens=int(data.get("prompt_eval_count", 0)),
             output_tokens=int(data.get("eval_count", 0)),
+            model=self._model,
+            cost_usd=0.0,
         )
