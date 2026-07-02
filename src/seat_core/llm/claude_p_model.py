@@ -57,4 +57,19 @@ class ClaudePModel:
         except json.JSONDecodeError as exc:
             raise ModelError(f"claude -p emitted non-JSON envelope: {exc}") from exc
         value = parse_structured(str(envelope.get("result", "")), self._output_model)
-        return DecideResult(value=value, input_tokens=0, output_tokens=0)
+        # The `claude -p --output-format json` envelope carries the per-call token
+        # usage and billed cost — parse them so the GM panel can meter every
+        # companion decision (161-2). Missing fields degrade to 0, never a crash:
+        # a telemetry gap must not break a decision (No Silent Fallbacks applies to
+        # the DECISION, which already succeeded above).
+        usage = envelope.get("usage") or {}
+        cache_read = int(usage.get("cache_read_input_tokens", 0) or 0)
+        cache_creation = int(usage.get("cache_creation_input_tokens", 0) or 0)
+        return DecideResult(
+            value=value,
+            input_tokens=int(usage.get("input_tokens", 0) or 0),
+            output_tokens=int(usage.get("output_tokens", 0) or 0),
+            cache_tokens=cache_read + cache_creation,
+            model=self._model,
+            cost_usd=float(envelope.get("total_cost_usd", 0.0) or 0.0),
+        )

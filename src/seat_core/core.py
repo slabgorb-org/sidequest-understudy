@@ -32,6 +32,9 @@ class DecideResult:
     value: BaseModel
     input_tokens: int
     output_tokens: int
+    cache_tokens: int = 0
+    model: str | None = None
+    cost_usd: float = 0.0
 
 
 class StructuredModel(Protocol):

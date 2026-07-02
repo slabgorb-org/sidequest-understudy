@@ -53,8 +53,14 @@ class AnthropicModel:
         usage = resp.usage
         cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
         cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+        # input_tokens keeps summing cache (the token ceiling meters true work);
+        # cache_tokens + model are surfaced separately for the companion telemetry
+        # ledger (161-2). cost_usd stays 0.0 — the Anthropic SDK response reports no
+        # per-call price (claude_p is the cost-metered backend via total_cost_usd).
         return DecideResult(
             value=value,
             input_tokens=usage.input_tokens + cache_read + cache_creation,
             output_tokens=usage.output_tokens,
+            cache_tokens=cache_read + cache_creation,
+            model=self._model,
         )
