@@ -15,7 +15,7 @@ from playwright.async_api import Page
 
 from understudy.actuation.act import Resolution, perform_act
 from understudy.brain.core import ActionModel, Message, ModelError
-from understudy.findings.detect import repeated_action
+from understudy.findings.detect import repeated_action, two_names_one_enemy
 from understudy.perception.snapshot import count_actionable, new_lines, perceive
 from understudy.persona.model import Archetype
 from understudy.persona.prompts import (
@@ -118,6 +118,16 @@ class SeatRunner:
                         seat=self.seat,
                         turn=turn,
                         detail="no operable controls exposed to a semantic reader",
+                    )
+                )
+            forked_name = two_names_one_enemy(snapshot)
+            if forked_name is not None:
+                signals.append(
+                    FrictionSignal(
+                        kind=SignalKind.TWO_NAMES_ONE_ENEMY,
+                        seat=self.seat,
+                        turn=turn,
+                        detail=f"enemy panel names one foe; narration names another: {forked_name}",
                     )
                 )
 
