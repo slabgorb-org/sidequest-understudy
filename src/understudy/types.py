@@ -46,6 +46,7 @@ class SignalKind(StrEnum):
     DECIDE_TIMEOUT = "decide_timeout"
     CONSOLE_ERROR = "console_error"
     NO_ACTIONABLE_ELEMENTS = "no_actionable_elements"
+    TWO_NAMES_ONE_ENEMY = "two_names_one_enemy"  # one foe under two names (108-2 fork)
     MODEL_ERROR = "model_error"  # malformed model output — down-weighted in reconciliation
 
 

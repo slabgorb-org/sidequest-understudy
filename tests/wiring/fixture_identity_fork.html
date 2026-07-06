@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head><title>Identity Fork Fixture</title></head>
+<body>
+<main>
+  <h1>Combat</h1>
+  <!-- The enemy panel names the single foe one way... -->
+  <section aria-label="Enemies">
+    <ul>
+      <li>Thief</li>
+    </ul>
+  </section>
+  <!-- ...while the narration names the SAME foe another way. Two names, one
+       enemy: the naive-player-visible symptom of a server identity fork. -->
+  <div id="narration" role="log">Molgrath the Eyeless lunges at you from the dark.</div>
+  <label for="action">Action</label>
+  <textarea id="action"></textarea>
+  <button id="send">Send</button>
+</main>
+<script>
+  document.getElementById("send").addEventListener("click", () => {
+    const box = document.getElementById("action");
+    // The fork persists across turns: the story keeps calling the Thief "Molgrath".
+    document.getElementById("narration").append(" Molgrath the Eyeless presses the attack.");
+    box.value = "";
+  });
+</script>
+</body>
+</html>
