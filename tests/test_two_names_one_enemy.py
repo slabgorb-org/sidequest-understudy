@@ -21,7 +21,7 @@ and wire it into the per-turn signal collection so it grades through
 ``reconcile`` (see tests/wiring/test_identity_fork_finding.py for the wiring).
 """
 
-from understudy.findings.detect import two_names_one_enemy
+from understudy.findings.detect import _narration, _node_text, two_names_one_enemy
 from understudy.findings.reconcile import reconcile
 from understudy.types import (
     FrictionSignal,
@@ -127,3 +127,91 @@ class TestGrading:
         ]
         findings = reconcile(rows, {1: "mechanics_first"})
         assert Grade.CONFIRMED in {f.grade for f in findings}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Story 162-11 (rework, round-trip 1) — direct coverage of the _narration /
+# _node_text helpers that reconcile the detector to Playwright's REAL nested
+# aria_snapshot. Review found these had zero direct unit tests and one genuine
+# silent-fallback (a `log:` opener with a trailing space dropped the narration →
+# detector returned None on a valid fork, the exact inert-in-production bug the
+# story exists to kill). These pin the helpers the way TestDetector pins
+# two_names_one_enemy: pure functions, zero LLM, screen-text only.
+# (_narration / _node_text are imported at the top of the module.)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestNodeText:
+    def test_strips_role_prefix(self) -> None:
+        assert _node_text("  - paragraph: Molgrath the Eyeless lunges.") == "Molgrath the Eyeless lunges."
+
+    def test_reads_quoted_form(self) -> None:
+        assert _node_text('  - text "Molgrath strikes"') == "Molgrath strikes"
+
+    def test_bare_role_node_has_no_text(self) -> None:
+        """A role node with no inline text (an element-only `- paragraph:` whose
+        prose lives on deeper child lines) must yield NO text — the role token
+        must never leak into the narration string. RED before the rework."""
+        assert _node_text("- paragraph:") == ""
+        assert _node_text("  - list:") == ""
+
+
+class TestNarration:
+    def test_reads_inline_log(self) -> None:
+        assert _narration(["- log: Molgrath the Eyeless lunges."]) == "Molgrath the Eyeless lunges."
+
+    def test_reads_nested_log(self) -> None:
+        lines = ["- log:", "  - paragraph: Molgrath the Eyeless lunges."]
+        assert _narration(lines) == "Molgrath the Eyeless lunges."
+
+    def test_trailing_space_opener_still_reads_nested_prose(self) -> None:
+        """A bare `log:` opener that carries a trailing space must NOT be
+        mis-read as an inline log with empty text — the nested child prose must
+        still be collected. RED before the rework (returned '')."""
+        lines = ["- log: ", "  - paragraph: Molgrath the Eyeless lunges."]
+        assert _narration(lines) == "Molgrath the Eyeless lunges."
+
+    def test_empty_paragraph_node_leaks_no_role_token(self) -> None:
+        """An element-only paragraph (prose on a deeper `- text:` child) must not
+        inject the literal 'paragraph:' token into the narration. RED before the
+        rework (returned 'paragraph: Molgrath strikes.')."""
+        lines = ["- log:", "  - paragraph:", "    - text: Molgrath strikes."]
+        assert _narration(lines) == "Molgrath strikes."
+
+    def test_literal_log_in_prose_is_kept_whole(self) -> None:
+        """Once inside a log region a child line is prose, so a literal 'log:'
+        inside the narrated sentence is never re-parsed as a new node."""
+        lines = ["- log:", "  - paragraph: You read the ship log: entry five."]
+        assert _narration(lines) == "You read the ship log: entry five."
+
+    def test_two_sequential_log_regions_both_read(self) -> None:
+        lines = ["- log:", "  - paragraph: First.", "- log:", "  - paragraph: Second Molgrath."]
+        assert _narration(lines) == "First. Second Molgrath."
+
+    def test_no_log_yields_empty(self) -> None:
+        assert _narration(["- region \"Enemies\":", "  - listitem: Thief"]) == ""
+
+
+class TestDetectorNestedRealDom:
+    """The end-to-end detector against real-shaped nested aria — the shape the
+    live ConfrontationOverlay/NarrationScroll emit."""
+
+    def _snap(self, log_lines: list[str]) -> str:
+        return "\n".join(['- region "Enemies":', "  - listitem: Thief", *log_lines])
+
+    def test_flags_fork_with_nested_log(self) -> None:
+        hit = two_names_one_enemy(self._snap(["- log:", "  - paragraph: Molgrath the Eyeless lunges."]))
+        assert hit is not None and "Molgrath" in hit
+
+    def test_flags_fork_with_trailing_space_log_opener(self) -> None:
+        """The silent-fallback the review caught: a trailing space after the
+        `log:` opener must not blind the detector to a real fork. RED before the
+        rework (detector returned None)."""
+        hit = two_names_one_enemy(self._snap(["- log: ", "  - paragraph: Molgrath the Eyeless lunges."]))
+        assert hit is not None and "Molgrath" in hit
+
+    def test_consistent_nested_naming_is_clean(self) -> None:
+        """A clean panel label ("Thief") that the narration also uses is not a
+        fork — guards against the portrait-initial contamination reappearing
+        (were the label "T Thief", "The Thief" prose would false-fork)."""
+        assert two_names_one_enemy(self._snap(["- log:", "  - paragraph: The Thief lunges from the dark."])) is None

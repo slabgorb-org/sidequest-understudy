@@ -3,26 +3,29 @@
 <head><title>Beneath Sunden — Ambush</title></head>
 <body>
 <!--
-  Story 162-11 (RED) — a FAITHFUL reproduction of the real sidequest-ui
-  confrontation + narration DOM, unlike the idealized fixture_identity_fork.html
-  (<section aria-label="Enemies"><ul><li>Thief</li></ul></section>).
+  Story 162-11 — a FAITHFUL reproduction of the real sidequest-ui confrontation
+  + narration DOM as it ships after the fix, unlike the idealized
+  fixture_identity_fork.html (<section aria-label="Enemies"><ul><li>Thief</li></ul>).
 
   In the live UI (ConfrontationOverlay.tsx / NarrationScroll.tsx):
-    * The foe is an ActorChip — a portrait <div> (name only in its `title`) beside
-      a name <span>. The name is NOT a bare text child of the list item.
+    * The foe is an ActorChip — a portrait <div> beside a name <span>. The
+      shipped chip is aria-hidden (decorative), so the listitem's accessible
+      name is the clean foe name — this fixture MUST carry that aria-hidden or it
+      would emit `listitem: T Thief` and stop reproducing what ships (the
+      day-one fixture divergence the review caught).
     * The narration is a scroll container that accumulates beats.
 
   This fixture applies the 162-11 target ARIA roles (region "Enemies",
   role="listitem", role="log" aria-live) ON TOP of that real structure, so the
-  wiring test drives the REAL perceive() -> aria_snapshot -> detector path — not
-  the idealized shape the detector was first written against.
+  wiring test drives the REAL perceive() -> aria_snapshot -> detector path over
+  the CLEAN `listitem: Thief` the shipped component produces.
 -->
 
 <!-- Enemies region — scoped to FOES ONLY (mirrors the ThemPanel / opponent
      group), so the detector sees exactly one foe. -->
 <div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
   <span role="listitem">
-    <div data-testid="actor-portrait" title="Thief — thug">T</div>
+    <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>
     <span>Thief</span>
   </span>
 </div>

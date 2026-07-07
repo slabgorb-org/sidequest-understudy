@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head><title>Beneath Sunden — Skirmish</title></head>
+<body>
+<!--
+  Story 162-11 — the CONSISTENT-naming companion to fixture_identity_fork_realdom.html.
+  Same shipped-DOM shape (aria-hidden decorative portrait + name span in a
+  role="listitem", role="log" narration), but the narration names the foe the
+  SAME way the panel does ("the Thief"). The detector must NOT flag a fork.
+
+  This is the fixture-fidelity guard the review asked for: it fires a FALSE fork
+  the instant the fixture drifts back to a non-aria-hidden portrait (`listitem:
+  T Thief` vs. prose "the Thief"), so the paired wiring test fails loudly if the
+  fixture stops reproducing what the component ships.
+-->
+
+<div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
+  <span role="listitem">
+    <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>
+    <span>Thief</span>
+  </span>
+</div>
+
+<div data-testid="narration-scroll" role="log" aria-live="polite">
+  <div class="narration-body">
+    <p>The Thief lunges at you from the dark.</p>
+  </div>
+</div>
+
+<label for="action">Action</label>
+<textarea id="action"></textarea>
+<button id="send">Send</button>
+<script>
+  document.getElementById("send").addEventListener("click", () => {
+    const box = document.getElementById("action");
+    const p = document.createElement("p");
+    p.textContent = "The Thief presses the attack.";
+    document.querySelector('[data-testid="narration-scroll"] .narration-body').appendChild(p);
+    box.value = "";
+  });
+</script>
+</body>
+</html>
