@@ -27,7 +27,12 @@ def repeated_action(intents: list[Intent | None], n: int = 3) -> bool:
 # production (162-11).
 _ENEMY_REGION = re.compile(r'region\s+"(?:enem\w*|foes?|opponents?|hostiles?)"', re.IGNORECASE)
 _LISTITEM = re.compile(r'listitem(?:\s*:\s*|\s+")(.+?)"?\s*$')
-_LOG = re.compile(r"\blog\s*:\s*(.+)$")
+# The inline form REQUIRES a non-whitespace char after the colon: a bare `log:`
+# opener that carries trailing whitespace must fall through to `_LOG_OPEN` (and
+# be read as a nested region), not match here with an empty capture and silently
+# drop the child prose (162-11 rework — the "detector returns None on a valid
+# fork" silent-fallback the review caught).
+_LOG = re.compile(r"\blog\s*:\s*(\S.*)$")
 _LOG_OPEN = re.compile(r"\blog\s*:\s*$")
 # A proper-noun phrase: capitalized words, optionally joined by lowercase
 # connectors ("Molgrath the Eyeless", "Grethll of the Deep").
@@ -66,6 +71,8 @@ def _node_text(line: str) -> str:
         return m.group(1).strip().strip('"')
     if m := re.match(r'[\w-]+\s+"(.+)"\s*$', s):  # `text "quoted"`
         return m.group(1).strip()
+    if re.match(r"[\w-]+\s*:\s*$", s):  # bare role node — prose is on child lines
+        return ""
     return s.strip().strip('"')
 
 
