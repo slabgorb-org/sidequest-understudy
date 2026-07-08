@@ -19,10 +19,21 @@ def repeated_action(intents: list[Intent | None], n: int = 3) -> bool:
 
 # The aria snapshot the player perceives (perception/snapshot.py) is indented,
 # YAML-ish text: an enemy panel is a `region "Enemies"` with `listitem` foes;
-# narration arrives as `log:` lines.
+# narration is the content of a `log:` live-region. Playwright emits that content
+# two ways: inline (`log: <text>`) when the log's text is a direct child, and —
+# for the real ConfrontationOverlay/NarrationScroll DOM — a bare `log:` opener
+# with the prose on deeper-indented child lines (`- paragraph: ...`). The
+# detector must read BOTH; reading only the inline form left it inert in
+# production (162-11).
 _ENEMY_REGION = re.compile(r'region\s+"(?:enem\w*|foes?|opponents?|hostiles?)"', re.IGNORECASE)
 _LISTITEM = re.compile(r'listitem(?:\s*:\s*|\s+")(.+?)"?\s*$')
-_LOG = re.compile(r"\blog\s*:\s*(.+)$")
+# The inline form REQUIRES a non-whitespace char after the colon: a bare `log:`
+# opener that carries trailing whitespace must fall through to `_LOG_OPEN` (and
+# be read as a nested region), not match here with an empty capture and silently
+# drop the child prose (162-11 rework — the "detector returns None on a valid
+# fork" silent-fallback the review caught).
+_LOG = re.compile(r"\blog\s*:\s*(\S.*)$")
+_LOG_OPEN = re.compile(r"\blog\s*:\s*$")
 # A proper-noun phrase: capitalized words, optionally joined by lowercase
 # connectors ("Molgrath the Eyeless", "Grethll of the Deep").
 _PROPER_NOUN = re.compile(
@@ -52,6 +63,44 @@ def _enemy_labels(lines: list[str]) -> list[str]:
     return labels
 
 
+def _node_text(line: str) -> str:
+    """The visible text of one aria-snapshot line, stripped of its `- role:` /
+    `- role "name"` prefix (e.g. `- paragraph: Molgrath...` → `Molgrath...`)."""
+    s = re.sub(r"^-\s*", "", line.strip())
+    if m := re.match(r"[\w-]+\s*:\s*(.+)$", s):  # `paragraph: text`
+        return m.group(1).strip().strip('"')
+    if m := re.match(r'[\w-]+\s+"(.+)"\s*$', s):  # `text "quoted"`
+        return m.group(1).strip()
+    if re.match(r"[\w-]+\s*:\s*$", s):  # bare role node — prose is on child lines
+        return ""
+    return s.strip().strip('"')
+
+
+def _narration(lines: list[str]) -> str:
+    """The narration prose the player reads — the content of the aria `log`
+    live-region — across BOTH forms Playwright emits: inline ``log: <text>`` and
+    the real nested form (a bare ``log:`` opener with prose on deeper-indented
+    child lines). Once inside a log region, child lines are read as prose, so a
+    literal "log:" appearing in the narration is never mistaken for a new node."""
+    parts: list[str] = []
+    in_log = False
+    log_indent = -1
+    for line in lines:
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip())
+        if in_log and indent > log_indent:
+            parts.append(_node_text(line))
+            continue
+        in_log = False
+        if m := _LOG.search(line):  # inline `log: <text>`
+            parts.append(m.group(1).strip())
+        elif _LOG_OPEN.search(line):  # bare `log:` — prose is on the child lines
+            in_log = True
+            log_indent = indent
+    return " ".join(p for p in parts if p)
+
+
 def two_names_one_enemy(snapshot: str) -> str | None:
     """Flag the naive-player-visible identity fork (108-2 two-names-one-enemy):
     the combat panel names the single foe one way while the narration names the
@@ -74,7 +123,7 @@ def two_names_one_enemy(snapshot: str) -> str | None:
         # No enemy panel, or more than one foe — two names is expected then.
         return None
     label = labels[0]
-    narration = " ".join(m.group(1).strip() for line in lines if (m := _LOG.search(line)))
+    narration = _narration(lines)
     if not narration:
         return None
     # If the panel label appears in the prose, the player has the link — clean.
