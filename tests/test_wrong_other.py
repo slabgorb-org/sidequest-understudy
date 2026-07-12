@@ -12,7 +12,7 @@ being told anything about creature ids, origin tiers, or the
 NAIVETY INVARIANT (understudy CLAUDE.md — load-bearing): the detector reads
 ONLY screen-visible text (the aria snapshot the player perceives), exactly
 like its 162-11 sibling `two_names_one_enemy`. It infers the seated foes from
-the Enemies panel and checks EACH one against the last 3 narration beats —
+the Enemies panel and checks EACH one against the last 2 narration TURNS —
 nothing more. Every listitem in the panel is its own distinct seated foe (the
 shipped ConfrontationOverlay exposes one plain name per foe — there is no
 alias-chip UI), so each foe is judged independently and every absent one is
@@ -20,14 +20,19 @@ reported: the classic 166-5 shape seats the CORRECT target plus a
 mechanically-convenient bystander, and the bystander must not hide behind the
 target's narration mentions.
 
-RED today: ``understudy.findings.detect.wrong_other`` does not exist and
-``SignalKind.WRONG_OTHER`` is not a member. GREEN = implement the pure
-detector (mirroring ``two_names_one_enemy``'s zero-LLM style, reusing its
-`_enemy_labels` / `_narration_entries` helpers) + the new signal kind, and wire
-it into the per-turn seat loop so it grades through ``reconcile``.
+THE WINDOW IS NARRATION TURNS, NOT ARIA NODES (final-review Finding 1). The
+shipped NarrationScroll emits a noisy segment mix inside role="log": player
+echo divs (`- text:`), MULTIPLE `- paragraph:` nodes per markdown turn, an
+<hr> (`- separator`) per NARRATION_END, and turn-status / gallery-notice
+chrome (`- text:`). Real narrators name the foe in the turn's OPENING
+paragraph, so a window counted in nodes has ~1 paragraph of effective prose
+depth and fires on a CORRECT server. The detector therefore judges PROSE only
+(paragraph nodes / inline log text — echoes and chrome excluded), grouped
+into separator-delimited turns, over the last 2 turns (~4-8 paragraphs of
+realistic prose).
 """
 
-from understudy.findings.detect import wrong_other
+from understudy.findings.detect import _log_prose_turns, _node_text, wrong_other
 from understudy.findings.reconcile import reconcile
 from understudy.types import (
     FrictionSignal,
@@ -40,11 +45,11 @@ from understudy.types import (
 
 # --- screen-visible aria snapshots (what perceive() hands the player) --------
 
-# The Enemies panel seats "Resonance Grazer" — but the last three narration
-# beats are all about "Ihnsch of the Rusted Works" (the Salt Camp Scrapborn,
-# the 166-5 regression's actual fiction target). The seated Other's name never
-# appears in the recent story: evidence the engine seated somebody the story
-# isn't about.
+# The Enemies panel seats "Resonance Grazer" — but the narration turn is all
+# about "Ihnsch of the Rusted Works" (the Salt Camp Scrapborn, the 166-5
+# regression's actual fiction target). The seated Other's name never appears
+# in the recent story: evidence the engine seated somebody the story isn't
+# about.
 SEATED_WRONG = """\
 - heading "Combat" [level=1]
 - region "Enemies":
@@ -86,7 +91,7 @@ NO_COMBAT = """\
 class TestDetector:
     def test_flags_seated_opponent_absent_from_recent_narration(self) -> None:
         assert wrong_other(SEATED_WRONG) == ["Resonance Grazer"], (
-            "a seated opponent absent from the last 3 narration beats was not flagged"
+            "a seated opponent absent from the recent narration turns was not flagged"
         )
 
     def test_seated_opponent_named_in_narration_is_clean(self) -> None:
@@ -125,36 +130,172 @@ class TestDetector:
         assert wrong_other(snapshot) == ["Ihnsch of the Rusted Works"]
 
 
-class TestWindow:
-    """The brief's chosen window is the last 3 narration entries."""
+# The exact segment mix the shipped NarrationScroll emits through Playwright's
+# aria_snapshot (empirically dumped from the real-DOM fixture): player echoes
+# and turn-status/gallery chrome are `- text:` nodes, each markdown paragraph
+# is its own `- paragraph:` node, each NARRATION_END <hr> is a bare
+# `- separator`. The seated foe IS named — in the current turn's OPENING
+# paragraph, the realistic narrator shape. The final-review Finding 1 bug: a
+# window counted in aria NODES (with the phantom "separator" beat) pushes that
+# mention out of range and flags a CORRECT server.
+SEGMENT_MIX_NAMED = """\
+- region "Enemies":
+  - listitem: Resonance Grazer
+- log:
+  - paragraph: You pick your way into the salt camp as dusk settles over the flats.
+  - paragraph: Scavengers watch from the shadows of rusted gantries, muttering.
+  - separator
+  - text: I circle wide and look for an opening
+  - paragraph: The Resonance Grazer rears up between the scrap heaps, shrieking.
+  - paragraph: Its cry rattles loose bolts from the gantry overhead.
+  - paragraph: Dust sheets down across the salt flats as the echoes die away.
+  - text: Waiting for the table… 2 images added to the gallery
+  - separator
+- textbox "Action"
+- button "Send"
+"""
 
-    def test_mention_outside_the_last_three_still_fires(self) -> None:
-        """The opponent was named four beats back but pacing has moved on
-        entirely — that's exactly the signal the detector wants, not a reason
-        to suppress (don't over-suppress)."""
+
+class TestWindow:
+    """The window is the last 2 narration TURNS — separator-delimited groups
+    of prose (real narrator turns run 2-4 paragraphs and name the foe in the
+    opening one), never a count of aria nodes."""
+
+    def test_named_in_current_turn_of_shipped_segment_mix_is_clean(self) -> None:
+        """The final-review Finding 1 regression gate at unit level: foe named
+        in the current turn's opening paragraph across the full shipped
+        segment mix (echo + multi-paragraph + chrome + separators) must NOT
+        fire. RED before the turn-window fix."""
+        assert wrong_other(SEGMENT_MIX_NAMED) == []
+
+    def test_mention_before_the_last_two_turns_still_fires(self) -> None:
+        """The opponent was named three turns back but pacing has moved on for
+        two full turns — that's exactly the signal the detector wants, not a
+        reason to suppress (don't over-suppress)."""
         snapshot = """\
 - region "Enemies":
-  - list:
-    - listitem: Resonance Grazer
+  - listitem: Resonance Grazer
 - log:
   - paragraph: Resonance Grazer rears up in the dark.
+  - separator
   - paragraph: You duck past the collapsed catwalk.
   - paragraph: Sparks rain from the severed conduit.
+  - separator
   - paragraph: The Scrapborn's crew regroups at the far door.
+  - separator
 """
         assert wrong_other(snapshot) == ["Resonance Grazer"]
 
-    def test_mention_within_the_last_three_suppresses(self) -> None:
+    def test_mention_within_the_last_two_turns_suppresses(self) -> None:
         snapshot = """\
 - region "Enemies":
-  - list:
-    - listitem: Resonance Grazer
+  - listitem: Resonance Grazer
 - log:
   - paragraph: You duck past the collapsed catwalk.
-  - paragraph: Sparks rain from the severed conduit.
+  - separator
   - paragraph: Resonance Grazer rears up in the dark.
+  - separator
+  - paragraph: Sparks rain from the severed conduit.
+  - separator
 """
         assert wrong_other(snapshot) == []
+
+
+class TestProseVsChrome:
+    """Only narration PROSE counts: paragraph nodes and inline log text. The
+    player's own echoed action and system chrome (`- text:` nodes) are not
+    the story naming the foe."""
+
+    def test_player_echo_naming_the_foe_does_not_suppress(self) -> None:
+        """The player typing "I attack the Resonance Grazer" is not the
+        narration being about the Grazer — if the story itself never names
+        the seated foe, the finding still fires."""
+        snapshot = """\
+- region "Enemies":
+  - listitem: Resonance Grazer
+- log:
+  - text: I attack the Resonance Grazer
+  - paragraph: Ihnsch of the Rusted Works shoves you back into the heaps.
+  - separator
+"""
+        assert wrong_other(snapshot) == ["Resonance Grazer"]
+
+    def test_bold_foe_name_in_prose_suppresses(self) -> None:
+        """A paragraph with inline markup is an element-only `- paragraph:`
+        opener whose prose lands on deeper child lines (`- strong:`,
+        `- text:`, footnote `- superscript:`/`- link`/`- /url:` noise) —
+        empirically dumped from markdownToHtml output. The bolded foe name is
+        still prose and must suppress; the /url property must not leak."""
+        snapshot = """\
+- region "Enemies":
+  - listitem: Resonance Grazer
+- log:
+  - paragraph:
+    - text: The
+    - strong: Resonance Grazer
+    - text: rears up, shrieking.
+    - superscript:
+      - link "1":
+        - /url: "#footnote-1"
+  - separator
+"""
+        assert wrong_other(snapshot) == []
+
+
+class TestNodeTextGuards:
+    """Aria tokens that must never leak into prose (final-review Finding 1a:
+    the bare `- separator` fell through `_node_text` and became a phantom
+    narration beat)."""
+
+    def test_valueless_role_token_is_not_prose(self) -> None:
+        assert _node_text("  - separator") == ""
+
+    def test_property_line_is_not_prose(self) -> None:
+        assert _node_text('        - /url: "#footnote-1"') == ""
+
+    def test_quoted_name_opener_is_not_prose(self) -> None:
+        assert _node_text('      - link "1":') == ""
+
+
+class TestProseTurns:
+    """Direct coverage of the turn-grouping walker `_log_prose_turns` (the
+    prose spine of the turn window), the way TestNarration pins `_narration`
+    for the 162-11 sibling."""
+
+    def test_groups_paragraphs_by_separator(self) -> None:
+        lines = [
+            "- log:",
+            "  - paragraph: First turn opens.",
+            "  - paragraph: First turn continues.",
+            "  - separator",
+            "  - paragraph: Second turn.",
+            "  - separator",
+        ]
+        assert _log_prose_turns(lines) == [
+            "First turn opens. First turn continues.",
+            "Second turn.",
+        ]
+
+    def test_excludes_text_chrome_and_echoes(self) -> None:
+        lines = [
+            "- log:",
+            "  - text: I circle wide and look for an opening",
+            "  - paragraph: The Grazer rears up.",
+            "  - text: Waiting for the table…",
+            "  - separator",
+        ]
+        assert _log_prose_turns(lines) == ["The Grazer rears up."]
+
+    def test_inline_log_text_is_one_turn(self) -> None:
+        """The idealized single-line form (`- log: <text>`) reads as one
+        one-beat turn, keeping the pre-realdom fixtures meaningful."""
+        assert _log_prose_turns(["- log: Molgrath the Eyeless lunges."]) == [
+            "Molgrath the Eyeless lunges."
+        ]
+
+    def test_trailing_separator_leaves_no_empty_turn(self) -> None:
+        lines = ["- log:", "  - paragraph: Only turn.", "  - separator"]
+        assert _log_prose_turns(lines) == ["Only turn."]
 
 
 class TestNormalization:

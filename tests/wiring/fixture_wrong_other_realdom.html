@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head><title>Salt Camp — Wrong Other</title></head>
+<body>
+<!--
+  Green Room Task 7 final review (Finding 2) — a FAITHFUL reproduction of the
+  real sidequest-ui confrontation + narration DOM, WRONG-OTHER polarity: the
+  Enemies panel seats "Resonance Grazer" (the mechanically-convenient
+  bystander of the 166-5 regression) while the narration prose is entirely
+  about "Ihnsch of the Rusted Works" — the seated foe is never named, across
+  the SHIPPED segment mix (player-action echo divs + multi-<p> markdown text
+  segments + an <hr> separator per NARRATION_END + turn-status /
+  gallery-notice chrome, ALL inside role="log"). wrong_other must fire.
+
+  Structure mirrors fixture_wrong_other_named_realdom.html (see its comment
+  for the NarrationScroll.tsx / narrativeRenderers.tsx mapping); only the
+  prose polarity differs.
+-->
+
+<div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
+  <span role="listitem">
+    <div data-testid="actor-portrait" title="Resonance Grazer — beast" aria-hidden="true">R</div>
+    <span>Resonance Grazer</span>
+  </span>
+</div>
+
+<div data-testid="narration-scroll" role="log" aria-live="polite">
+  <div class="flex-1"></div>
+  <div class="px-6 py-8 space-y-4">
+    <!-- History turn: multi-<p> markdown text segment, then its NARRATION_END separator. -->
+    <div class="max-w-[85ch] mx-auto mb-6">
+      <div class="narr-text narr-text-history prose">
+        <p>You pick your way into the salt camp as dusk settles over the flats.</p>
+        <p>Scavengers watch from the shadows of rusted gantries, muttering.</p>
+      </div>
+    </div>
+    <hr data-testid="segment-separator" class="border-0 border-t" />
+    <!-- Current turn: the player's echoed action, then narration that is all
+         about Ihnsch — the seated "Resonance Grazer" is never mentioned. -->
+    <div data-testid="player-action" data-peer="false" class="player-action italic">I grab the loudest one by the collar</div>
+    <div class="max-w-[85ch] mx-auto mb-6">
+      <div class="narr-text narr-text-current prose">
+        <p>Ihnsch of the Rusted Works snarls and shoves back, salt crunching underfoot.</p>
+        <p>His crew fans out between the scrap heaps, blades catching the last light.</p>
+        <p>Somewhere overhead a gantry groans under a watcher's weight.</p>
+      </div>
+    </div>
+    <div data-testid="turn-status" class="text-sm">Waiting for the table…</div>
+    <div class="text-xs italic">2 images added to the gallery</div>
+    <hr data-testid="segment-separator" class="border-0 border-t" />
+  </div>
+</div>
+
+<label for="action">Action</label>
+<textarea id="action"></textarea>
+<button id="send">Send</button>
+<script>
+  document.getElementById("send").addEventListener("click", () => {
+    const box = document.getElementById("action");
+    const container = document.querySelector('[data-testid="narration-scroll"] .px-6');
+    // A new turn lands with the SAME shipped segment mix — and the story
+    // keeps being about Ihnsch, never the seated Grazer.
+    const echo = document.createElement("div");
+    echo.setAttribute("data-testid", "player-action");
+    echo.className = "player-action italic";
+    echo.textContent = box.value || "I press the attack";
+    container.appendChild(echo);
+    const wrap = document.createElement("div");
+    wrap.className = "max-w-[85ch] mx-auto mb-6";
+    const prose = document.createElement("div");
+    prose.className = "narr-text narr-text-current prose";
+    prose.innerHTML =
+      "<p>Ihnsch of the Rusted Works presses the attack, iron knuckles gleaming.</p>" +
+      "<p>You give ground across the salt, boots skidding on the crust.</p>" +
+      "<p>The scavengers begin to chant his name from the heaps.</p>";
+    wrap.appendChild(prose);
+    container.appendChild(wrap);
+    const hr = document.createElement("hr");
+    hr.setAttribute("data-testid", "segment-separator");
+    container.appendChild(hr);
+    box.value = "";
+  });
+</script>
+</body>
+</html>

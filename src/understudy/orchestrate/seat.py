@@ -135,7 +135,10 @@ class SeatRunner:
                         detail=f"enemy panel names one foe; narration names another: {forked_name}",
                     )
                 )
-            for absent_foe in wrong_other(snapshot):
+            # The detail derives from the window actually passed to the
+            # detector — one source of truth, never a hardcoded count.
+            wrong_other_window = WRONG_OTHER_WINDOW
+            for absent_foe in wrong_other(snapshot, window=wrong_other_window):
                 signals.append(
                     FrictionSignal(
                         kind=SignalKind.WRONG_OTHER,
@@ -143,7 +146,7 @@ class SeatRunner:
                         turn=turn,
                         detail=(
                             f"enemy panel seats {absent_foe!r}; absent from the last "
-                            f"{WRONG_OTHER_WINDOW} narration beats"
+                            f"{wrong_other_window} narration turns"
                         ),
                     )
                 )
