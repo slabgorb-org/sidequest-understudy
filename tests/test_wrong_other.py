@@ -11,9 +11,14 @@ being told anything about creature ids, origin tiers, or the
 
 NAIVETY INVARIANT (understudy CLAUDE.md — load-bearing): the detector reads
 ONLY screen-visible text (the aria snapshot the player perceives), exactly
-like its 162-11 sibling `two_names_one_enemy`. It infers the seated Other from
-the Enemies panel and checks it against the last 3 narration beats — nothing
-more.
+like its 162-11 sibling `two_names_one_enemy`. It infers the seated foes from
+the Enemies panel and checks EACH one against the last 3 narration beats —
+nothing more. Every listitem in the panel is its own distinct seated foe (the
+shipped ConfrontationOverlay exposes one plain name per foe — there is no
+alias-chip UI), so each foe is judged independently and every absent one is
+reported: the classic 166-5 shape seats the CORRECT target plus a
+mechanically-convenient bystander, and the bystander must not hide behind the
+target's narration mentions.
 
 RED today: ``understudy.findings.detect.wrong_other`` does not exist and
 ``SignalKind.WRONG_OTHER`` is not a member. GREEN = implement the pure
@@ -80,20 +85,18 @@ NO_COMBAT = """\
 
 class TestDetector:
     def test_flags_seated_opponent_absent_from_recent_narration(self) -> None:
-        hit = wrong_other(SEATED_WRONG)
-        assert hit is not None, (
+        assert wrong_other(SEATED_WRONG) == ["Resonance Grazer"], (
             "a seated opponent absent from the last 3 narration beats was not flagged"
         )
-        assert "Resonance Grazer" in hit
 
     def test_seated_opponent_named_in_narration_is_clean(self) -> None:
-        assert wrong_other(SEATED_RIGHT) is None
+        assert wrong_other(SEATED_RIGHT) == []
 
     def test_no_combat_panel_is_clean(self) -> None:
-        assert wrong_other(NO_COMBAT) is None
+        assert wrong_other(NO_COMBAT) == []
 
     def test_empty_snapshot_is_clean(self) -> None:
-        assert wrong_other("") is None
+        assert wrong_other("") == []
 
     def test_no_narration_yet_is_clean(self) -> None:
         """A freshly-opened confrontation panel with no narration beats yet is
@@ -104,7 +107,22 @@ class TestDetector:
     - listitem: Resonance Grazer
 - textbox "Action"
 """
-        assert wrong_other(snapshot) is None
+        assert wrong_other(snapshot) == []
+
+    def test_epithet_only_narration_still_fires(self) -> None:
+        """Documented, accepted scope: the panel exposes only the canonical
+        name ("Ihnsch of the Rusted Works"); the narration uses only the
+        epithet ("the Scrapborn"). The bot has no screen-visible link between
+        them — so this reads as a fork, the same confusion a naive player
+        reading only the screen would have. Don't over-suppress."""
+        snapshot = """\
+- region "Enemies":
+  - list:
+    - listitem: Ihnsch of the Rusted Works
+- log:
+  - paragraph: The Scrapborn lunges from the scrap heap.
+"""
+        assert wrong_other(snapshot) == ["Ihnsch of the Rusted Works"]
 
 
 class TestWindow:
@@ -124,7 +142,7 @@ class TestWindow:
   - paragraph: Sparks rain from the severed conduit.
   - paragraph: The Scrapborn's crew regroups at the far door.
 """
-        assert wrong_other(snapshot) is not None
+        assert wrong_other(snapshot) == ["Resonance Grazer"]
 
     def test_mention_within_the_last_three_suppresses(self) -> None:
         snapshot = """\
@@ -136,7 +154,7 @@ class TestWindow:
   - paragraph: Sparks rain from the severed conduit.
   - paragraph: Resonance Grazer rears up in the dark.
 """
-        assert wrong_other(snapshot) is None
+        assert wrong_other(snapshot) == []
 
 
 class TestNormalization:
@@ -148,7 +166,7 @@ class TestNormalization:
 - log:
   - paragraph: The RESONANCE GRAZER shrieks and charges.
 """
-        assert wrong_other(snapshot) is None
+        assert wrong_other(snapshot) == []
 
     def test_possessive_mention_suppresses(self) -> None:
         """Substring matching catches possessive phrasing ("the Grazer's
@@ -160,43 +178,58 @@ class TestNormalization:
 - log:
   - paragraph: The Grazer's claws rake your arm.
 """
-        assert wrong_other(snapshot) is None
+        assert wrong_other(snapshot) == []
 
 
-class TestAliasAware:
-    def test_any_panel_label_matching_suppresses(self) -> None:
-        """If the Enemies panel ever exposes more than one label for the
-        seated Other (a canonical name plus an alias chip), a narration match
-        on EITHER label is sufficient. Today the live panel exposes exactly
-        one label per foe, so this branch is dormant until the UI grows one —
-        but the check is alias-aware for free via `_enemy_labels`, which
-        already collects every listitem in the panel."""
+class TestMultiFoe:
+    """Every Enemies listitem is its own distinct seated foe (the shipped
+    panel exposes one plain name per foe — no alias-chip UI exists), so each
+    is judged independently against the recent-narration window and EVERY
+    absent one is reported."""
+
+    def test_correct_target_plus_silent_bystander_flags_only_bystander(self) -> None:
+        """The classic 166-5 shape: the engine seats the CORRECT fiction
+        target ("Ihnsch of the Rusted Works") PLUS a mechanically-convenient
+        bystander ("Resonance Grazer"). Narration names the target — it's the
+        story target — and never the bystander. The bystander must be flagged;
+        it must not hide behind the target's narration mentions."""
         snapshot = """\
 - region "Enemies":
   - list:
     - listitem: Ihnsch of the Rusted Works
-    - listitem: the Scrapborn
+    - listitem: Resonance Grazer
 - log:
-  - paragraph: The Scrapborn's crew scatters into the scrap heaps.
+  - paragraph: You grab the loudest one by the collar.
+  - paragraph: Ihnsch of the Rusted Works snarls and shoves back.
+  - paragraph: His crew scatters into the scrap heaps.
 """
-        assert wrong_other(snapshot) is None
+        assert wrong_other(snapshot) == ["Resonance Grazer"]
 
-    def test_epithet_only_narration_without_panel_alias_still_fires(self) -> None:
-        """Documented, accepted scope: the panel exposes only the canonical
-        name ("Ihnsch of the Rusted Works"); the narration uses only the
-        epithet ("the Scrapborn"). The bot has no screen-visible link between
-        them — the panel doesn't expose the alias — so this reads as a fork,
-        the same confusion a naive player reading only the screen would have.
-        If the panel ever grows an alias chip, TestAliasAware's suppression
-        above kicks in without further changes to this detector."""
+    def test_both_foes_absent_flags_both(self) -> None:
+        snapshot = """\
+- region "Enemies":
+  - list:
+    - listitem: Resonance Grazer
+    - listitem: Rustwing Vulture
+- log:
+  - paragraph: You grab the loudest one by the collar.
+  - paragraph: Ihnsch of the Rusted Works snarls and shoves back.
+  - paragraph: His crew scatters into the scrap heaps.
+"""
+        assert wrong_other(snapshot) == ["Resonance Grazer", "Rustwing Vulture"]
+
+    def test_both_foes_named_is_clean(self) -> None:
         snapshot = """\
 - region "Enemies":
   - list:
     - listitem: Ihnsch of the Rusted Works
+    - listitem: Resonance Grazer
 - log:
-  - paragraph: The Scrapborn lunges from the scrap heap.
+  - paragraph: Ihnsch of the Rusted Works snarls and shoves back.
+  - paragraph: A resonance grazer rears up behind him, shrieking.
+  - paragraph: The scrapyard erupts.
 """
-        assert wrong_other(snapshot) is not None
+        assert wrong_other(snapshot) == []
 
 
 # --- the new signal grades through the existing reconciler -------------------

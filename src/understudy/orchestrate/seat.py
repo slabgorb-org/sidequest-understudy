@@ -15,7 +15,12 @@ from playwright.async_api import Page
 
 from understudy.actuation.act import Resolution, perform_act
 from understudy.brain.core import ActionModel, Message, ModelError
-from understudy.findings.detect import repeated_action, two_names_one_enemy, wrong_other
+from understudy.findings.detect import (
+    WRONG_OTHER_WINDOW,
+    repeated_action,
+    two_names_one_enemy,
+    wrong_other,
+)
 from understudy.perception.snapshot import count_actionable, new_lines, perceive
 from understudy.persona.model import Archetype
 from understudy.persona.prompts import (
@@ -130,16 +135,15 @@ class SeatRunner:
                         detail=f"enemy panel names one foe; narration names another: {forked_name}",
                     )
                 )
-            seated_wrong = wrong_other(snapshot)
-            if seated_wrong is not None:
+            for absent_foe in wrong_other(snapshot):
                 signals.append(
                     FrictionSignal(
                         kind=SignalKind.WRONG_OTHER,
                         seat=self.seat,
                         turn=turn,
                         detail=(
-                            f"enemy panel seats {seated_wrong!r}; absent from the last "
-                            "3 narration beats"
+                            f"enemy panel seats {absent_foe!r}; absent from the last "
+                            f"{WRONG_OTHER_WINDOW} narration beats"
                         ),
                     )
                 )

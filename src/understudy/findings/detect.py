@@ -149,12 +149,15 @@ def two_names_one_enemy(snapshot: str) -> str | None:
     return None
 
 
-def wrong_other(snapshot: str, window: int = 3) -> str | None:
+WRONG_OTHER_WINDOW = 3  # narration beats a seated foe must appear within (Task 7 brief)
+
+
+def wrong_other(snapshot: str, window: int = WRONG_OTHER_WINDOW) -> list[str]:
     """Flag the naive-player-visible wrong-Other regression (166-5, closed
     server-side by ADR-156's Green Room materializer + target-first seater):
-    the Enemies panel seats an opponent whose name never appears anywhere in
-    the last `window` narration beats — evidence the engine seated somebody
-    the story isn't about.
+    the Enemies panel seats a foe whose name never appears anywhere in the
+    last `window` narration beats — evidence the engine seated somebody the
+    story isn't about.
 
     Screen-only, zero LLM judgment (mirrors :func:`two_names_one_enemy`): reads
     ONLY the aria ``snapshot`` the player perceives via `_enemy_labels` and
@@ -162,38 +165,33 @@ def wrong_other(snapshot: str, window: int = 3) -> str | None:
     `green_room.materialized` span (that backend state would break the
     naivety invariant).
 
-    Alias-aware: `_enemy_labels` already collects EVERY listitem in the
-    Enemies panel, so if the panel ever exposes more than one label for the
-    seated Other (a canonical name plus an alias chip), a narration match on
-    ANY of them suppresses the finding — for free, no extra alias plumbing.
-    Today the live panel exposes exactly one label per foe, so this degrades
-    to a single-name check.
+    Each Enemies listitem is its own DISTINCT seated foe (the shipped panel
+    exposes one plain name per foe), so every foe is judged independently and
+    every absent one is reported. The classic 166-5 shape seats the CORRECT
+    target plus a mechanically-convenient bystander: the narration names the
+    target — it's the story target — and never the bystander, and the
+    bystander must not hide behind the target's mentions.
 
     Matching is a case-insensitive substring test on both sides (the brief's
     chosen normalization) — no word-boundary requirement, so possessives
     ("the Grazer's claws") and mid-sentence mentions still suppress. An
-    epithet the panel doesn't also expose as an alias ("the Scrapborn" vs a
-    panel label of "Ihnsch of the Rusted Works") will NOT suppress: the naive
-    bot has no screen-visible link between them, so that reads as the same
-    fork a real player would see. Don't over-suppress.
+    epithet the panel doesn't display ("the Scrapborn" vs a panel label of
+    "Ihnsch of the Rusted Works") will NOT suppress: the naive bot has no
+    screen-visible link between them, so that reads as the same fork a real
+    player would see. Don't over-suppress.
 
-    Returns the seated opponent's panel display name when the finding fires;
-    ``None`` when there is no seated opponent, no narration yet to judge
-    against, or the name (or a panel-exposed alias) is present in the recent
-    beats.
+    Returns the panel display names of every seated foe absent from the
+    recent beats, in panel order; empty when there are no seated foes, no
+    narration yet to judge against, or every foe is named.
     """
     if not snapshot:
-        return None
+        return []
     lines = snapshot.splitlines()
     labels = _enemy_labels(lines)
     if not labels:
-        return None
+        return []
     entries = _narration_entries(lines)
     if not entries:
-        return None
+        return []
     recent = [entry.casefold() for entry in entries[-window:]]
-    for label in labels:
-        needle = label.casefold()
-        if any(needle in entry for entry in recent):
-            return None
-    return labels[0]
+    return [label for label in labels if not any(label.casefold() in entry for entry in recent)]
