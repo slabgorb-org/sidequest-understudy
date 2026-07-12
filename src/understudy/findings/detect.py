@@ -76,12 +76,16 @@ def _node_text(line: str) -> str:
     return s.strip().strip('"')
 
 
-def _narration(lines: list[str]) -> str:
-    """The narration prose the player reads — the content of the aria `log`
-    live-region — across BOTH forms Playwright emits: inline ``log: <text>`` and
-    the real nested form (a bare ``log:`` opener with prose on deeper-indented
-    child lines). Once inside a log region, child lines are read as prose, so a
-    literal "log:" appearing in the narration is never mistaken for a new node."""
+def _narration_entries(lines: list[str]) -> list[str]:
+    """The individual narration beats inside the aria `log` live-region(s), in
+    screen order — the granular list `_narration` joins into one string. Reads
+    BOTH forms Playwright emits: inline ``log: <text>`` (one beat) and the real
+    nested form (a bare ``log:`` opener with each beat on its own deeper-indented
+    child line — the shipped NarrationScroll accumulates one `<p>` per beat).
+    Once inside a log region, child lines are read as prose, so a literal
+    "log:" appearing in the narration is never mistaken for a new node. Empty
+    wrapper nodes (a bare role line whose text lives on a still-deeper child)
+    are dropped, never leaking a role token as a phantom beat."""
     parts: list[str] = []
     in_log = False
     log_indent = -1
@@ -98,7 +102,14 @@ def _narration(lines: list[str]) -> str:
         elif _LOG_OPEN.search(line):  # bare `log:` — prose is on the child lines
             in_log = True
             log_indent = indent
-    return " ".join(p for p in parts if p)
+    return [p for p in parts if p]
+
+
+def _narration(lines: list[str]) -> str:
+    """The narration prose the player reads — the content of the aria `log`
+    live-region(s) — as one joined string. See `_narration_entries` for the
+    per-beat breakdown this is built from."""
+    return " ".join(_narration_entries(lines))
 
 
 def two_names_one_enemy(snapshot: str) -> str | None:
@@ -136,3 +147,53 @@ def two_names_one_enemy(snapshot: str) -> str | None:
         if bare.casefold() != label.casefold():
             return phrase
     return None
+
+
+def wrong_other(snapshot: str, window: int = 3) -> str | None:
+    """Flag the naive-player-visible wrong-Other regression (166-5, closed
+    server-side by ADR-156's Green Room materializer + target-first seater):
+    the Enemies panel seats an opponent whose name never appears anywhere in
+    the last `window` narration beats — evidence the engine seated somebody
+    the story isn't about.
+
+    Screen-only, zero LLM judgment (mirrors :func:`two_names_one_enemy`): reads
+    ONLY the aria ``snapshot`` the player perceives via `_enemy_labels` and
+    `_narration_entries` — never a creature_id, an origin tier, or a
+    `green_room.materialized` span (that backend state would break the
+    naivety invariant).
+
+    Alias-aware: `_enemy_labels` already collects EVERY listitem in the
+    Enemies panel, so if the panel ever exposes more than one label for the
+    seated Other (a canonical name plus an alias chip), a narration match on
+    ANY of them suppresses the finding — for free, no extra alias plumbing.
+    Today the live panel exposes exactly one label per foe, so this degrades
+    to a single-name check.
+
+    Matching is a case-insensitive substring test on both sides (the brief's
+    chosen normalization) — no word-boundary requirement, so possessives
+    ("the Grazer's claws") and mid-sentence mentions still suppress. An
+    epithet the panel doesn't also expose as an alias ("the Scrapborn" vs a
+    panel label of "Ihnsch of the Rusted Works") will NOT suppress: the naive
+    bot has no screen-visible link between them, so that reads as the same
+    fork a real player would see. Don't over-suppress.
+
+    Returns the seated opponent's panel display name when the finding fires;
+    ``None`` when there is no seated opponent, no narration yet to judge
+    against, or the name (or a panel-exposed alias) is present in the recent
+    beats.
+    """
+    if not snapshot:
+        return None
+    lines = snapshot.splitlines()
+    labels = _enemy_labels(lines)
+    if not labels:
+        return None
+    entries = _narration_entries(lines)
+    if not entries:
+        return None
+    recent = [entry.casefold() for entry in entries[-window:]]
+    for label in labels:
+        needle = label.casefold()
+        if any(needle in entry for entry in recent):
+            return None
+    return labels[0]
