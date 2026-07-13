@@ -47,6 +47,7 @@ class SignalKind(StrEnum):
     CONSOLE_ERROR = "console_error"
     NO_ACTIONABLE_ELEMENTS = "no_actionable_elements"
     TWO_NAMES_ONE_ENEMY = "two_names_one_enemy"  # one foe under two names (108-2 fork)
+    WRONG_OTHER = "wrong_other"  # seated Other absent from recent narration (166-5 regression)
     MODEL_ERROR = "model_error"  # malformed model output — down-weighted in reconciliation
 
 

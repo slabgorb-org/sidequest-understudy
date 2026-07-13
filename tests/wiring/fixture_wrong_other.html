@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><title>Wrong Other Fixture</title></head>
+<body>
+<main>
+  <h1>Combat</h1>
+  <!-- The Enemies panel seats "Resonance Grazer" — a mechanically-convenient
+       bystander (the 166-5 regression shape: the wrong creature gets seated). -->
+  <section aria-label="Enemies">
+    <ul>
+      <li>Resonance Grazer</li>
+    </ul>
+  </section>
+  <!-- The narration never once names the seated Other — it's all about a
+       specific named target the fiction actually cares about. Screen-visible
+       evidence the engine seated somebody the story isn't about. -->
+  <div id="narration" role="log">Ihnsch of the Rusted Works snarls and shoves back.</div>
+  <label for="action">Action</label>
+  <textarea id="action"></textarea>
+  <button id="send">Send</button>
+</main>
+<script>
+  document.getElementById("send").addEventListener("click", () => {
+    const box = document.getElementById("action");
+    // The seated "Resonance Grazer" never gets mentioned across turns.
+    document.getElementById("narration").append(" Ihnsch presses the attack.");
+    box.value = "";
+  });
+</script>
+</body>
+</html>

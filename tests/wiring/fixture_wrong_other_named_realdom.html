@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head><title>Salt Camp — Grazer Turn</title></head>
+<body>
+<!--
+  Green Room Task 7 final review (Finding 2) — a FAITHFUL reproduction of the
+  real sidequest-ui confrontation + narration DOM, NAMED polarity: the seated
+  foe ("Resonance Grazer") IS named in the narration prose — in the turn's
+  OPENING paragraph, where real narrators name the foe — so wrong_other must
+  NOT fire. This is the regression gate for the node-vs-beat window bug: the
+  shipped NarrationScroll segment mix (player-action echo divs + multi-<p>
+  markdown text segments + an <hr> separator per NARRATION_END + turn-status /
+  gallery-notice chrome, ALL inside role="log") pushes the opening-paragraph
+  mention outside any window counted in aria NODES, and the <hr> aria
+  `- separator` used to leak as a phantom "separator" beat.
+
+  In the live UI (NarrationScroll.tsx / narrativeRenderers.tsx):
+    * a "text" segment is a wrapper div around a `narr-text prose` div whose
+      markdownToHtml innerHTML is MULTIPLE <p> elements per narration turn;
+    * a "player-action" segment is a plain italic div (the player's echoed
+      action text — NOT narration prose);
+    * every NARRATION_END appends a "separator" segment rendered as <hr>;
+    * "turn-status" / gallery-notice segments are plain text divs (chrome);
+    * the ConfrontationOverlay foe is an ActorChip: aria-hidden portrait div
+      beside a name span inside role="listitem" (the 162-11 shape).
+-->
+
+<div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
+  <span role="listitem">
+    <div data-testid="actor-portrait" title="Resonance Grazer — beast" aria-hidden="true">R</div>
+    <span>Resonance Grazer</span>
+  </span>
+</div>
+
+<div data-testid="narration-scroll" role="log" aria-live="polite">
+  <div class="flex-1"></div>
+  <div class="px-6 py-8 space-y-4">
+    <!-- History turn: multi-<p> markdown text segment, then its NARRATION_END separator. -->
+    <div class="max-w-[85ch] mx-auto mb-6">
+      <div class="narr-text narr-text-history prose">
+        <p>You pick your way into the salt camp as dusk settles over the flats.</p>
+        <p>Scavengers watch from the shadows of rusted gantries, muttering.</p>
+      </div>
+    </div>
+    <hr data-testid="segment-separator" class="border-0 border-t" />
+    <!-- Current turn: the player's echoed action, then the narration. The foe
+         is named in the OPENING paragraph — the realistic narrator shape. -->
+    <div data-testid="player-action" data-peer="false" class="player-action italic">I circle wide and look for an opening</div>
+    <div class="max-w-[85ch] mx-auto mb-6">
+      <div class="narr-text narr-text-current prose">
+        <p>The Resonance Grazer rears up between the scrap heaps, shrieking.</p>
+        <p>Its cry rattles loose bolts from the gantry overhead, and the scavengers scatter for cover.</p>
+        <p>Dust sheets down across the salt flats as the echoes die away.</p>
+      </div>
+    </div>
+    <div data-testid="turn-status" class="text-sm">Waiting for the table…</div>
+    <div class="text-xs italic">2 images added to the gallery</div>
+    <hr data-testid="segment-separator" class="border-0 border-t" />
+  </div>
+</div>
+
+<label for="action">Action</label>
+<textarea id="action"></textarea>
+<button id="send">Send</button>
+<script>
+  document.getElementById("send").addEventListener("click", () => {
+    const box = document.getElementById("action");
+    const container = document.querySelector('[data-testid="narration-scroll"] .px-6');
+    // A new turn lands with the SAME shipped segment mix: echo, then a
+    // multi-<p> text segment naming the foe in the opening paragraph only,
+    // then the NARRATION_END separator.
+    const echo = document.createElement("div");
+    echo.setAttribute("data-testid", "player-action");
+    echo.className = "player-action italic";
+    echo.textContent = box.value || "I press the attack";
+    container.appendChild(echo);
+    const wrap = document.createElement("div");
+    wrap.className = "max-w-[85ch] mx-auto mb-6";
+    const prose = document.createElement("div");
+    prose.className = "narr-text narr-text-current prose";
+    prose.innerHTML =
+      "<p>The Resonance Grazer wheels and charges, hooves sparking on the salt.</p>" +
+      "<p>You dive aside as a gantry strut buckles, showering rust.</p>" +
+      "<p>Somewhere behind the heaps, the scavengers begin to chant.</p>";
+    wrap.appendChild(prose);
+    container.appendChild(wrap);
+    const hr = document.createElement("hr");
+    hr.setAttribute("data-testid", "segment-separator");
+    container.appendChild(hr);
+    box.value = "";
+  });
+</script>
+</body>
+</html>
