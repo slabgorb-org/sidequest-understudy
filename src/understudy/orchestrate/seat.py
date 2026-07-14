@@ -161,7 +161,7 @@ class SeatRunner:
                     timeout=self.decide_timeout_s,
                 )
                 self.ledger.add(result.input_tokens, result.output_tokens)
-                intent = result.intent
+                intent = result.value
             except TimeoutError:
                 signals.append(
                     FrictionSignal(
