@@ -5,8 +5,9 @@
 <!--
   Story 162-11 — the CONSISTENT-naming companion to fixture_identity_fork_realdom.html.
   Same shipped-DOM shape (aria-hidden decorative portrait + name span in a
-  role="listitem", role="log" narration), but the narration names the foe the
-  SAME way the panel does ("the Thief"). The detector must NOT flag a fork.
+  role="listitem" inside a role="list" parent, role="log" narration), but the
+  narration names the foe the SAME way the panel does ("the Thief"). The
+  detector must NOT flag a fork.
 
   This is the fixture-fidelity guard the review asked for: it fires a FALSE fork
   the instant the fixture drifts back to a non-aria-hidden portrait (`listitem:
@@ -15,9 +16,11 @@
 -->
 
 <div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
-  <span role="listitem">
-    <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>
-    <span>Thief</span>
+  <span role="list">
+    <span role="listitem">
+      <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>
+      <span>Thief</span>
+    </span>
   </span>
 </div>
 

@@ -13,6 +13,12 @@
       name is the clean foe name — this fixture MUST carry that aria-hidden or it
       would emit `listitem: T Thief` and stop reproducing what ships (the
       day-one fixture divergence the review caught).
+    * The foe listitems sit inside a role="list" parent (WCAG 1.3.1
+      aria-required-parent), so aria_snapshot interposes a `- list:` line
+      between the region and the listitem. `_enemy_labels` walks by indent and
+      collects only listitem matches, so it skips that line — but the fixture
+      carries the wrapper anyway, because "faithful reproduction" has to be
+      true, not approximately true.
     * The narration is a scroll container that accumulates beats.
 
   This fixture applies the 162-11 target ARIA roles (region "Enemies",
@@ -24,9 +30,11 @@
 <!-- Enemies region — scoped to FOES ONLY (mirrors the ThemPanel / opponent
      group), so the detector sees exactly one foe. -->
 <div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
-  <span role="listitem">
-    <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>
-    <span>Thief</span>
+  <span role="list">
+    <span role="listitem">
+      <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>
+      <span>Thief</span>
+    </span>
   </span>
 </div>
 
