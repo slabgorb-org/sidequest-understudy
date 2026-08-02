@@ -4,18 +4,22 @@
 <body>
 <!--
   Story 162-11 — the CONSISTENT-naming companion to fixture_identity_fork_realdom.html.
-  Same shipped-DOM shape (aria-hidden decorative portrait + name span in a
-  role="listitem" inside a role="list" parent, role="log" narration), but the
-  narration names the foe the SAME way the panel does ("the Thief"). The
+  Same accessibility subtree (region "Enemies" > `roster-vs` "vs" text node +
+  role="list" > role="listitem" > aria-hidden decorative portrait beside the
+  name span; role="log" narration), and the same deliberate omissions — read
+  that fixture's header for the full reproduced / NOT-reproduced inventory,
+  including why the region carries no data-testid. Only the prose differs here:
+  the narration names the foe the SAME way the panel does ("the Thief"), so the
   detector must NOT flag a fork.
 
   This is the fixture-fidelity guard the review asked for: it fires a FALSE fork
   the instant the fixture drifts back to a non-aria-hidden portrait (`listitem:
   T Thief` vs. prose "the Thief"), so the paired wiring test fails loudly if the
-  fixture stops reproducing what the component ships.
+  fixture stops reproducing the part of the shipped DOM the detector reads.
 -->
 
-<div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
+<div role="region" aria-label="Enemies">
+  <span data-testid="roster-vs">vs</span>
   <span role="list">
     <span role="listitem">
       <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>

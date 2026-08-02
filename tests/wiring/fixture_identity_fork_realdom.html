@@ -3,33 +3,61 @@
 <head><title>Beneath Sunden — Ambush</title></head>
 <body>
 <!--
-  Story 162-11 — a FAITHFUL reproduction of the real sidequest-ui confrontation
-  + narration DOM as it ships after the fix, unlike the idealized
-  fixture_identity_fork.html (<section aria-label="Enemies"><ul><li>Thief</li></ul>).
+  Story 162-11 — reproduces the ACCESSIBILITY SUBTREE the identity-fork detector
+  reads out of the real sidequest-ui confrontation + narration DOM, unlike the
+  idealized fixture_identity_fork.html
+  (<section aria-label="Enemies"><ul><li>Thief</li></ul>).
 
-  In the live UI (ConfrontationOverlay.tsx / NarrationScroll.tsx):
-    * The foe is an ActorChip — a portrait <div> beside a name <span>. The
-      shipped chip is aria-hidden (decorative), so the listitem's accessible
-      name is the clean foe name — this fixture MUST carry that aria-hidden or it
-      would emit `listitem: T Thief` and stop reproducing what ships (the
-      day-one fixture divergence the review caught).
-    * The foe listitems sit inside a role="list" parent (WCAG 1.3.1
-      aria-required-parent), so aria_snapshot interposes a `- list:` line
-      between the region and the listitem. `_enemy_labels` walks by indent and
-      collects only listitem matches, so it skips that line — but the fixture
-      carries the wrapper anyway, because "faithful reproduction" has to be
-      true, not approximately true.
-    * The narration is a scroll container that accumulates beats.
+  It is faithful WHERE THE DETECTOR LOOKS — the aria tree under
+  `region "Enemies"` and the `log:` prose — and deliberately partial everywhere
+  else. Both halves are spelled out below so the next reader does not have to
+  trust a blanket "faithful reproduction" claim. Line refs are
+  sidequest-ui/src/components/ConfrontationOverlay.tsx @ e4500e9.
 
-  This fixture applies the 162-11 target ARIA roles (region "Enemies",
-  role="listitem", role="log" aria-live) ON TOP of that real structure, so the
-  wiring test drives the REAL perceive() -> aria_snapshot -> detector path over
-  the CLEAN `listitem: Thief` the shipped component produces.
+  REPRODUCED (verified against the shipped component):
+    * role="region" aria-label="Enemies", scoped to the opponent roster group
+      only (:600-601, `isEnemyGroup`) — so the detector sees exactly one foe.
+    * The `roster-vs` "vs" text node that opens the region whenever it is the
+      second roster group (:603-611, gated on `gi > 0` — true in every real
+      player-vs-opponent scene). It is NOT aria-hidden, so aria_snapshot emits
+      a `- text: vs` line inside the region. `_enemy_labels` collects only
+      listitem matches, so it skips that line.
+    * The role="list" parent the foe listitems require (WCAG 1.3.1
+      aria-required-parent, :612-619), which interposes a `- list:` line
+      between the region and the listitem. `_enemy_labels` walks by indent, so
+      it skips that line too.
+    * role="listitem" per foe (:561) wrapping an aria-hidden decorative
+      ActorChip portrait beside the sr-only name span (:572-578) — so the
+      listitem's accessible name is the CLEAN foe name. Drop that aria-hidden
+      and the snapshot becomes `listitem: T Thief`; the paired consistent
+      fixture false-forks and the wiring test fails loudly.
+    * role="log" aria-live narration whose prose sits on deeper-indented child
+      lines, the shape NarrationScroll.tsx ships.
+
+  NOT REPRODUCED (out of the detector's reach, and left out on purpose):
+    * The real DOM ancestry. The shipped Enemies region is a testid-less
+      <span> inside data-testid="dial-scoreboard" (:539, :597-601); here it is
+      a bare <div> at body level. An earlier revision of this fixture hung the
+      region off data-testid="confrontation-them-panel" — that testid belongs
+      to ThemPanel, a different element entirely, and has been removed.
+    * The ThemPanel subtree (:1220-1251), which renders on every opponent
+      scene with its own NON-decorative ActorChip (:1236) and a visible foe
+      name. What actually mirrors ThemPanel here is the `side === "opponent"`
+      scoping (:530), not the markup.
+    * The rest of dial-scoreboard — allied roster group, commitment badges,
+      dials/HP bars, encounter label.
+
+  Nothing in the omitted set reaches `_enemy_labels` or `_narration`, so the
+  wiring test still drives the REAL perceive() -> aria_snapshot -> detector
+  path over the CLEAN `listitem: Thief` the shipped component produces. Node-
+  for-node fidelity is NOT claimed and is not maintainable by hand — see the
+  158-62 delivery finding calling for a generated fixture.
 -->
 
-<!-- Enemies region — scoped to FOES ONLY (mirrors the ThemPanel / opponent
-     group), so the detector sees exactly one foe. -->
-<div data-testid="confrontation-them-panel" role="region" aria-label="Enemies">
+<!-- Enemies region — scoped to FOES ONLY (the opponent roster group), so the
+     detector sees exactly one foe. -->
+<div role="region" aria-label="Enemies">
+  <span data-testid="roster-vs">vs</span>
   <span role="list">
     <span role="listitem">
       <div data-testid="actor-portrait" title="Thief — thug" aria-hidden="true">T</div>
